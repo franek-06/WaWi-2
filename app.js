@@ -742,6 +742,7 @@ const Utils = {
     if (root.nodeType === Node.TEXT_NODE) {
       textTargets.push(root);
     } else if (root.querySelectorAll) {
+      textTargets.push(root);
       textTargets.push(...root.querySelectorAll('*'));
     }
 
@@ -1198,7 +1199,12 @@ const Dashboard = {
       .addEventListener('input', e => this.updateQtyHint(parseInt(e.target.value) || 1));
 
     document.getElementById('art-photos')
-      .addEventListener('change', e => this.handlePhotoUpload(e.target.files));
+      .addEventListener('change', async e => {
+        await this.handlePhotoUpload(e.target.files);
+        e.target.value = '';
+      });
+
+    this.bindFileDropzone('art-photos-dropzone', 'art-photos', files => this.handlePhotoUpload(files));
 
     document.getElementById('article-form')
       .addEventListener('submit', e => { e.preventDefault(); this.saveArticle(); });
@@ -1286,6 +1292,38 @@ const Dashboard = {
       }
     }
     this.renderPhotoPreviews(preview, State.articlePhotos, 'articlePhotos');
+  },
+
+  bindFileDropzone(dropzoneId, inputId, onFiles) {
+    const dropzone = document.getElementById(dropzoneId);
+    const input    = document.getElementById(inputId);
+    if (!dropzone || !input || typeof onFiles !== 'function') return;
+
+    const setActive = isActive => dropzone.classList.toggle('drag-active', isActive);
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, e => {
+        e.preventDefault();
+        e.stopPropagation();
+        setActive(true);
+      });
+    });
+
+    ['dragleave', 'dragend', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (eventName === 'dragleave' && dropzone.contains(e.relatedTarget)) return;
+        setActive(false);
+      });
+    });
+
+    dropzone.addEventListener('drop', async e => {
+      const files = e.dataTransfer?.files;
+      if (!files?.length) return;
+      await onFiles(files);
+      input.value = '';
+    });
   },
 
   renderPhotoPreviews(container, arr, stateKey) {
@@ -1555,7 +1593,18 @@ const Dashboard = {
           `<div class="photo-thumb">
              <img src="${State.groupImageBase64}" alt="Gruppenbild"/>
            </div>`;
+        e.target.value = '';
       });
+
+    this.bindFileDropzone('grp-image-dropzone', 'grp-image', async files => {
+      const file = Array.from(files).find(entry => entry.type.startsWith('image/'));
+      if (!file) return;
+      State.groupImageBase64 = await Utils.resizeImage(file, 1400, 0.88);
+      document.getElementById('grp-image-preview').innerHTML =
+        `<div class="photo-thumb">
+           <img src="${State.groupImageBase64}" alt="Gruppenbild"/>
+         </div>`;
+    });
 
     document.getElementById('btn-price-history')
       .addEventListener('click', () => {
