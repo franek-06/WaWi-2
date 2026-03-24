@@ -634,6 +634,31 @@ const Utils = {
     const input = String(value ?? '');
     if (!/[ÃÂâð�]/.test(input)) return input;
     let repaired = input
+      .replace(/fÃƒÂ¼r/g, 'für')
+      .replace(/spÃƒÂ¤ter/g, 'später')
+      .replace(/ÃƒÂ¼bernehmen/g, 'übernehmen')
+      .replace(/Bestands�bersicht/g, 'Bestandsübersicht')
+      .replace(/Gruppen�bersicht/g, 'Gruppenübersicht')
+      .replace(/Enzyklop�die/g, 'Enzyklopädie')
+      .replace(/Verf�gbar/g, 'Verfügbar')
+      .replace(/K�nig/g, 'König')
+      .replace(/f�r/g, 'für')
+      .replace(/sp�ter/g, 'später')
+      .replace(/�bernehmen/g, 'übernehmen')
+      .replace(/m�glich/g, 'möglich')
+      .replace(/l�schen/g, 'löschen')
+      .replace(/L�schen/g, 'Löschen')
+      .replace(/ausgew�hlt/g, 'ausgewählt')
+      .replace(/best�tigen/g, 'bestätigen')
+      .replace(/Best�tigen/g, 'Bestätigen')
+      .replace(/gel�st/g, 'gelöst')
+      .replace(/vollst�ndig/g, 'vollständig')
+      .replace(/r�ckg�ngig/g, 'rückgängig')
+      .replace(/endg�ltig/g, 'endgültig')
+      .replace(/St�ckzahl/g, 'Stückzahl')
+      .replace(/Ma�e/g, 'Maße')
+      .replace(/H�he/g, 'Höhe')
+      .replace(/Wei�/g, 'Weiß')
       .replace(/Ã¼/g, 'ü')
       .replace(/Ã¶/g, 'ö')
       .replace(/Ã¤/g, 'ä')
@@ -664,6 +689,31 @@ const Utils = {
       }
     }
     return repaired
+      .replace(/fÃƒÂ¼r/g, 'für')
+      .replace(/spÃƒÂ¤ter/g, 'später')
+      .replace(/ÃƒÂ¼bernehmen/g, 'übernehmen')
+      .replace(/Bestands�bersicht/g, 'Bestandsübersicht')
+      .replace(/Gruppen�bersicht/g, 'Gruppenübersicht')
+      .replace(/Enzyklop�die/g, 'Enzyklopädie')
+      .replace(/Verf�gbar/g, 'Verfügbar')
+      .replace(/K�nig/g, 'König')
+      .replace(/f�r/g, 'für')
+      .replace(/sp�ter/g, 'später')
+      .replace(/�bernehmen/g, 'übernehmen')
+      .replace(/m�glich/g, 'möglich')
+      .replace(/l�schen/g, 'löschen')
+      .replace(/L�schen/g, 'Löschen')
+      .replace(/ausgew�hlt/g, 'ausgewählt')
+      .replace(/best�tigen/g, 'bestätigen')
+      .replace(/Best�tigen/g, 'Bestätigen')
+      .replace(/gel�st/g, 'gelöst')
+      .replace(/vollst�ndig/g, 'vollständig')
+      .replace(/r�ckg�ngig/g, 'rückgängig')
+      .replace(/endg�ltig/g, 'endgültig')
+      .replace(/St�ckzahl/g, 'Stückzahl')
+      .replace(/Ma�e/g, 'Maße')
+      .replace(/H�he/g, 'Höhe')
+      .replace(/Wei�/g, 'Weiß')
       .replace(/Ã¼/g, 'ü')
       .replace(/Ã¶/g, 'ö')
       .replace(/Ã¤/g, 'ä')
@@ -818,9 +868,9 @@ const Router = {
   titles: {
     dashboard  : 'Dashboard &amp; Erfassung',
     groups     : 'Artikelgruppen',
-    inventory  : 'BestandsÃ¼bersicht',
+    inventory  : 'Bestandsübersicht',
     sold       : 'Verkaufte Artikel',
-    encyclopedia: 'EnzyklopÃ¤die',
+    encyclopedia: 'Enzyklopädie',
     tools      : 'Tools &amp; Import/Export',
     scanner    : '<i class="fa-solid fa-qrcode"></i> QR-Scanner',
   },

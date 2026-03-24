@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MöbelWawi v1.4</title>
+  <title>MÃ¶belWawi v1.4</title>
 
   <!-- Externe Ressourcen -->
   <link rel="stylesheet"
@@ -30,7 +30,7 @@
 ============================================================ -->
 <div id="modal-overlay" class="hidden" role="dialog" aria-modal="true">
   <div id="modal-wrapper">
-    <button id="modal-close-btn" aria-label="Modal schließen">
+    <button id="modal-close-btn" aria-label="Modal schlieÃŸen">
       <i class="fa-solid fa-xmark"></i>
     </button>
     <div id="modal-content"></div>
@@ -40,12 +40,12 @@
 <!-- ============================================================
      APP-SHELL
 ============================================================ -->
-<!-- ── Google Login-Screen ── -->
+<!-- â”€â”€ Google Login-Screen â”€â”€ -->
   <div id="login-screen">
     <div class="login-card">
       <div class="login-logo">
         <i class="fa-solid fa-couch"></i>
-        <span>MöbelWawi</span>
+        <span>MÃ¶belWawi</span>
       </div>
       <p class="login-subtitle">Bitte melde dich an, um fortzufahren.</p>
       <button id="google-login-btn" class="btn-google-login">
@@ -58,12 +58,12 @@
 
   <div id="app" class="hidden">
 
-  <!-- ── SIDEBAR ─────────────────────────────────────────────── -->
+  <!-- â”€â”€ SIDEBAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <aside id="sidebar" role="navigation" aria-label="Hauptnavigation">
     <div class="sidebar-header">
       <div class="sidebar-logo">
         <i class="fa-solid fa-couch"></i>
-        <span>MöbelWawi</span>
+        <span>MÃ¶belWawi</span>
       </div>
       <span class="sidebar-version">v1.4</span>
     </div>
@@ -87,7 +87,7 @@
       </a>
       <a href="#" class="nav-item" data-view="encyclopedia">
         <i class="fa-solid fa-book-open"></i>
-        <span>Enzyklopädie</span>
+        <span>EnzyklopÃ¤die</span>
       </a>
       <a href="#" class="nav-item" data-view="tools">
         <i class="fa-solid fa-screwdriver-wrench"></i>
@@ -103,7 +103,7 @@
     <div class="sidebar-footer">
       <div class="db-status">
         <i class="fa-solid fa-database"></i>
-        <span id="db-stats">0 Artikel · 0 Gruppen</span>
+        <span id="db-stats">0 Artikel Â· 0 Gruppen</span>
       </div>
       <button id="logout-btn" class="btn btn-ghost btn-sm" style="width:100%;justify-content:flex-start;gap:8px;margin-top:8px;">
         <i class="fa-solid fa-right-from-bracket"></i>
@@ -112,13 +112,13 @@
     </div>
   </aside>
 
-  <!-- ── MAIN ────────────────────────────────────────────────── -->
+  <!-- â”€â”€ MAIN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div id="main">
 
     <!-- TOPBAR -->
     <header id="topbar">
       <button id="hamburger-btn"
-              aria-label="Menü öffnen"
+              aria-label="MenÃ¼ Ã¶ffnen"
               aria-expanded="false">
         <i class="fa-solid fa-bars"></i>
       </button>
@@ -129,9 +129,9 @@
       </button>
     </header>
 
-    <!-- ════════════════════════════════════════════════════════
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
          VIEW: DASHBOARD
-    ═════════════════════════════════════════════════════════ -->
+    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     <div id="view-dashboard" class="view">
 
       <!-- Statistik-Karten -->
@@ -151,7 +151,7 @@
           </div>
           <div class="stat-body">
             <div class="stat-value" id="stat-available">0</div>
-            <div class="stat-label">Verfügbar</div>
+            <div class="stat-label">VerfÃ¼gbar</div>
           </div>
         </div>
         <div class="stat-card">
@@ -168,7 +168,7 @@
             <i class="fa-solid fa-euro-sign"></i>
           </div>
           <div class="stat-body">
-            <div class="stat-value" id="stat-revenue">0 €</div>
+            <div class="stat-value" id="stat-revenue">0 â‚¬</div>
             <div class="stat-label">Umsatz (VK)</div>
           </div>
         </div>
@@ -184,11 +184,11 @@
         </button>
       </div>
 
-      <!-- ── TAB: ARTIKEL ──────────────────────────────────── -->
+      <!-- â”€â”€ TAB: ARTIKEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
       <div id="tab-article" class="tab-panel active">
         <form id="article-form" novalidate>
 
-          <!-- Verstecktes Feld für Gruppen-Vorbelegung -->
+          <!-- Verstecktes Feld fÃ¼r Gruppen-Vorbelegung -->
           <input type="hidden" id="article-edit-group-id" value=""/>
 
           <!-- ID + QR -->
@@ -216,7 +216,7 @@
                 Status <span class="required">*</span>
               </label>
               <select id="art-status">
-                <option value="Verfügbar">Verfügbar</option>
+                <option value="VerfÃ¼gbar">VerfÃ¼gbar</option>
                 <option value="Reserviert">Reserviert</option>
                 <option value="Verkauft">Verkauft</option>
                 <option value="Entsorgt">Entsorgt</option>
@@ -227,8 +227,8 @@
                 Kategorie <span class="required">*</span>
               </label>
               <select id="art-category">
-                <option value="">– Bitte wählen –</option>
-                <optgroup label="Sitzmöbel">
+                <option value="">â€“ Bitte wÃ¤hlen â€“</option>
+                <optgroup label="SitzmÃ¶bel">
                   <option value="Sofa">Sofa</option>
                   <option value="Sessel">Sessel</option>
                   <option value="Stuhl">Stuhl</option>
@@ -271,12 +271,12 @@
             <div class="form-group">
               <label for="art-manufacturer">Hersteller</label>
               <input type="text" id="art-manufacturer"
-                     placeholder="z. B. IKEA, HAY, Vitra …"/>
+                     placeholder="z. B. IKEA, HAY, Vitra â€¦"/>
             </div>
             <div class="form-group">
               <label for="art-model">Modell / Name</label>
               <input type="text" id="art-model"
-                     placeholder="z. B. KALLAX, About a Chair …"/>
+                     placeholder="z. B. KALLAX, About a Chair â€¦"/>
             </div>
           </div>
 
@@ -315,16 +315,16 @@
             </div>
           </div>
 
-          <!-- Standort + Stückzahl -->
+          <!-- Standort + StÃ¼ckzahl -->
           <div class="form-row">
             <div class="form-group">
               <label for="art-location">Standort / Lager</label>
               <input type="text" id="art-location"
-                     placeholder="z. B. Lager A, Reihe 3 …"/>
+                     placeholder="z. B. Lager A, Reihe 3 â€¦"/>
             </div>
             <div class="form-group">
               <label for="art-quantity">
-                Stückzahl
+                StÃ¼ckzahl
                 <span style="font-size:var(--font-size-xs);
                              color:var(--color-muted);font-weight:400;">
                   (&gt;1 = Bulk)
@@ -332,13 +332,13 @@
               </label>
               <input type="number" id="art-quantity"
                      value="1" min="1" max="999"/>
-              <!-- Stückzahl-Hinweis wird per JS eingefügt -->
+              <!-- StÃ¼ckzahl-Hinweis wird per JS eingefÃ¼gt -->
             </div>
           </div>
 
-          <!-- Maße -->
+          <!-- MaÃŸe -->
           <div class="form-group">
-            <label>Maße (cm)</label>
+            <label>MaÃŸe (cm)</label>
             <div class="form-row">
               <div class="form-group" style="margin-bottom:0;">
                 <input type="number" id="art-width"
@@ -350,7 +350,7 @@
               </div>
               <div class="form-group" style="margin-bottom:0;">
                 <input type="number" id="art-height"
-                       placeholder="Höhe" min="0" step="0.1"/>
+                       placeholder="HÃ¶he" min="0" step="0.1"/>
               </div>
             </div>
           </div>
@@ -360,30 +360,30 @@
             <div class="form-group">
               <label for="art-material">Material</label>
               <input type="text" id="art-material"
-                     placeholder="z. B. Eiche, Leder, Stoff …"/>
+                     placeholder="z. B. Eiche, Leder, Stoff â€¦"/>
             </div>
             <div class="form-group">
               <label for="art-style">Stil</label>
               <input type="text" id="art-style"
-                     placeholder="z. B. Modern, Skandinavisch …"/>
+                     placeholder="z. B. Modern, Skandinavisch â€¦"/>
             </div>
             <div class="form-group">
               <label for="art-color">Farbe</label>
               <input type="text" id="art-color"
-                     placeholder="z. B. Weiß, Schwarz, Eiche …"/>
+                     placeholder="z. B. WeiÃŸ, Schwarz, Eiche â€¦"/>
             </div>
           </div>
 
           <!-- Preise: Einkaufspreis Netto / Brutto -->
           <div class="form-row">
             <div class="form-group">
-              <label for="art-purchase-price">Einkaufspreis Netto (€)</label>
+              <label for="art-purchase-price">Einkaufspreis Netto (â‚¬)</label>
               <input type="number" id="art-purchase-price"
                      placeholder="0,00" min="0" step="0.01"/>
             </div>
             <div class="form-group">
               <label for="art-purchase-price-gross">
-                Einkaufspreis Brutto (€)
+                Einkaufspreis Brutto (â‚¬)
                 <span style="font-size:var(--font-size-xs);color:var(--color-muted);font-weight:400;">inkl. 19% MwSt.</span>
               </label>
               <input type="number" id="art-purchase-price-gross"
@@ -393,13 +393,13 @@
           <!-- Preise: Originalpreis / UVP Netto / Brutto -->
           <div class="form-row">
             <div class="form-group">
-              <label for="art-original-price">Originalpreis / UVP Netto (€)</label>
+              <label for="art-original-price">Originalpreis / UVP Netto (â‚¬)</label>
               <input type="number" id="art-original-price"
                      placeholder="0,00" min="0" step="0.01"/>
             </div>
             <div class="form-group">
               <label for="art-original-price-gross">
-                Originalpreis / UVP Brutto (€)
+                Originalpreis / UVP Brutto (â‚¬)
                 <span style="font-size:var(--font-size-xs);color:var(--color-muted);font-weight:400;">inkl. 19% MwSt.</span>
               </label>
               <input type="number" id="art-original-price-gross"
@@ -412,7 +412,7 @@
             <div class="form-group">
               <label for="art-listing-link">Inserat-Link</label>
               <input type="url" id="art-listing-link"
-                     placeholder="https://www.ebay-kleinanzeigen.de/…"/>
+                     placeholder="https://www.ebay-kleinanzeigen.de/â€¦"/>
             </div>
             <div class="form-group">
               <label for="art-pickup-zip">Abholung PLZ</label>
@@ -425,13 +425,13 @@
           <div class="form-group">
             <label class="checkbox-label">
               <input type="checkbox" id="art-shipping"/>
-              <span>Versand möglich</span>
+              <span>Versand mÃ¶glich</span>
             </label>
             <div id="shipping-cost-wrapper"
                  style="display:none;margin-top:8px;align-items:center;gap:8px;">
               <label for="art-shipping-cost"
                      style="white-space:nowrap;font-size:var(--font-size-sm);">
-                Versandkosten (€)
+                Versandkosten (â‚¬)
               </label>
               <input type="number" id="art-shipping-cost"
                      placeholder="0,00" min="0" step="0.01"
@@ -450,7 +450,7 @@
               </span>
             </label>
             <select id="art-group-assign">
-              <option value="">– Automatisch zuordnen –</option>
+              <option value="">â€“ Automatisch zuordnen â€“</option>
             </select>
           </div>
 
@@ -462,14 +462,14 @@
             <div class="form-row">
               <div class="form-group">
                 <label for="art-sold-price">
-                  Verkaufspreis Netto (€) <span class="required">*</span>
+                  Verkaufspreis Netto (â‚¬) <span class="required">*</span>
                 </label>
                 <input type="number" id="art-sold-price"
                        placeholder="0,00" min="0" step="0.01"/>
               </div>
               <div class="form-group">
                 <label for="art-sold-price-gross">
-                  Verkaufspreis Brutto (€)
+                  Verkaufspreis Brutto (â‚¬)
                   <span style="font-size:var(--font-size-xs);color:var(--color-muted);font-weight:400;">inkl. 19% MwSt.</span>
                 </label>
                 <input type="number" id="art-sold-price-gross"
@@ -497,7 +497,7 @@
             </label>
             <label class="file-upload-label">
               <i class="fa-solid fa-camera"></i>
-              Fotos auswählen
+              Fotos auswÃ¤hlen
               <input type="file" id="art-photos"
                      accept="image/*" multiple style="display:none"/>
             </label>
@@ -508,20 +508,20 @@
           <div class="form-group">
             <label for="art-notes">Bemerkungen</label>
             <textarea id="art-notes"
-                      placeholder="Interne Notizen, Zustandsbeschreibung …"
+                      placeholder="Interne Notizen, Zustandsbeschreibung â€¦"
                       rows="3"></textarea>
           </div>
 
           <!-- Aktionsbuttons -->
           <div class="form-actions">
-            <!-- v1.8: Abbrechen kehrt zum Bestand zurück (nur im Bearbeitungsmodus) -->
+            <!-- v1.8: Abbrechen kehrt zum Bestand zurÃ¼ck (nur im Bearbeitungsmodus) -->
             <button type="button" class="btn btn-ghost"
                     id="btn-cancel-article">
               <i class="fa-solid fa-xmark"></i> Abbrechen
             </button>
             <button type="button" class="btn btn-reset"
                     id="btn-reset-article">
-              <i class="fa-solid fa-rotate-left"></i> Zurücksetzen
+              <i class="fa-solid fa-rotate-left"></i> ZurÃ¼cksetzen
             </button>
             <button type="submit" class="btn btn-primary"
                     id="btn-save-article">
@@ -531,9 +531,9 @@
 
         </form>
       </div>
-      <!-- ── ENDE TAB: ARTIKEL ─────────────────────────────── -->
+      <!-- â”€â”€ ENDE TAB: ARTIKEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
 
-      <!-- ── TAB: GRUPPE ───────────────────────────────────── -->
+      <!-- â”€â”€ TAB: GRUPPE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
       <div id="tab-group" class="tab-panel">
         <form id="group-form" novalidate>
 
@@ -546,7 +546,7 @@
             <div class="form-group">
               <label for="grp-status">Status</label>
               <select id="grp-status">
-                <option value="Verfügbar">Verfügbar</option>
+                <option value="VerfÃ¼gbar">VerfÃ¼gbar</option>
                 <option value="Reserviert">Reserviert</option>
                 <option value="Verkauft">Verkauft</option>
                 <option value="Entsorgt">Entsorgt</option>
@@ -560,18 +560,18 @@
               Gruppenname <span class="required">*</span>
             </label>
             <input type="text" id="grp-name"
-                   placeholder="z. B. IKEA KALLAX Set, Wohnzimmer-Garnitur …"/>
+                   placeholder="z. B. IKEA KALLAX Set, Wohnzimmer-Garnitur â€¦"/>
           </div>
 
-          <!-- Standort + Stückzahl -->
+          <!-- Standort + StÃ¼ckzahl -->
           <div class="form-row">
             <div class="form-group">
               <label for="grp-location">Standort</label>
               <input type="text" id="grp-location"
-                     placeholder="z. B. Lager B, Halle 2 …"/>
+                     placeholder="z. B. Lager B, Halle 2 â€¦"/>
             </div>
             <div class="form-group">
-              <label for="grp-quantity">Stückzahl (Gruppe gesamt)</label>
+              <label for="grp-quantity">StÃ¼ckzahl (Gruppe gesamt)</label>
               <input type="number" id="grp-quantity"
                      value="1" min="1"/>
             </div>
@@ -580,13 +580,13 @@
           <!-- Preise mit MwSt-Kopplung -->
           <div class="form-row">
             <div class="form-group">
-              <label for="grp-price-net">Zielpreis Netto (€)</label>
+              <label for="grp-price-net">Zielpreis Netto (â‚¬)</label>
               <input type="number" id="grp-price-net"
                      placeholder="0,00" min="0" step="0.01"/>
             </div>
             <div class="form-group">
               <label for="grp-price-gross">
-                Zielpreis Brutto (€)
+                Zielpreis Brutto (â‚¬)
                 <span style="font-size:var(--font-size-xs);
                              color:var(--color-muted);">
                   (19 % MwSt.)
@@ -597,11 +597,11 @@
             </div>
           </div>
 
-          <!-- Zustandsübersicht -->
+          <!-- ZustandsÃ¼bersicht -->
           <div class="form-group">
-            <label for="grp-condition-overview">Zustandsübersicht</label>
+            <label for="grp-condition-overview">ZustandsÃ¼bersicht</label>
             <input type="text" id="grp-condition-overview"
-                   placeholder="z. B. 4× Neuwertig, 2× leichte Gebrauchsspuren"/>
+                   placeholder="z. B. 4Ã— Neuwertig, 2Ã— leichte Gebrauchsspuren"/>
           </div>
 
           <!-- Preishistorie -->
@@ -619,7 +619,7 @@
               <span>Verkaufsdaten</span>
             </div>
             <div class="form-group">
-              <label for="grp-sold-price">Erzielter Verkaufspreis (€)</label>
+              <label for="grp-sold-price">Erzielter Verkaufspreis (â‚¬)</label>
               <input type="number" id="grp-sold-price"
                      placeholder="0,00" min="0" step="0.01"/>
             </div>
@@ -630,7 +630,7 @@
             <label>Gruppenbild</label>
             <label class="file-upload-label">
               <i class="fa-solid fa-image"></i>
-              Bild auswählen
+              Bild auswÃ¤hlen
               <input type="file" id="grp-image"
                      accept="image/*" style="display:none"/>
             </label>
@@ -641,19 +641,19 @@
           <div class="form-group">
             <label for="grp-notes">Notizen</label>
             <textarea id="grp-notes"
-                      placeholder="Interne Bemerkungen zur Gruppe …"
+                      placeholder="Interne Bemerkungen zur Gruppe â€¦"
                       rows="3"></textarea>
           </div>
 
           <div class="form-actions">
-            <!-- v1.6: Abbrechen kehrt zur Gruppendetailansicht zurück -->
+            <!-- v1.6: Abbrechen kehrt zur Gruppendetailansicht zurÃ¼ck -->
             <button type="button" class="btn btn-ghost"
                     id="btn-cancel-group">
               <i class="fa-solid fa-xmark"></i> Abbrechen
             </button>
             <button type="button" class="btn btn-reset"
                     id="btn-reset-group">
-              <i class="fa-solid fa-rotate-left"></i> Zurücksetzen
+              <i class="fa-solid fa-rotate-left"></i> ZurÃ¼cksetzen
             </button>
             <button type="submit" class="btn btn-primary"
                     id="btn-save-group">
@@ -663,16 +663,16 @@
 
         </form>
       </div>
-      <!-- ── ENDE TAB: GRUPPE ──────────────────────────────── -->
+      <!-- â”€â”€ ENDE TAB: GRUPPE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
 
     </div>
-    <!-- ── ENDE VIEW: DASHBOARD ─────────────────────────────── -->
-    <!-- ════════════════════════════════════════════════════════
+    <!-- â”€â”€ ENDE VIEW: DASHBOARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
          VIEW: GRUPPEN
-    ═════════════════════════════════════════════════════════ -->
+    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     <div id="view-groups" class="view hidden">
 
-      <!-- ── GRUPPEN-ÜBERSICHT ─────────────────────────────── -->
+      <!-- â”€â”€ GRUPPEN-ÃœBERSICHT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
       <div id="groups-overview">
 
         <!-- Toolbar -->
@@ -680,13 +680,13 @@
           <div class="toolbar-search">
             <i class="fa-solid fa-magnifying-glass"></i>
             <input type="search" id="groups-search"
-                   placeholder="Gruppen suchen …"
+                   placeholder="Gruppen suchen â€¦"
                    aria-label="Gruppen durchsuchen"/>
           </div>
           <div class="toolbar-filters">
             <select id="groups-filter-status" aria-label="Nach Status filtern">
               <option value="">Alle Status</option>
-              <option value="Verfügbar">Verfügbar</option>
+              <option value="VerfÃ¼gbar">VerfÃ¼gbar</option>
               <option value="Reserviert">Reserviert</option>
               <option value="Verkauft">Verkauft</option>
               <option value="Entsorgt">Entsorgt</option>
@@ -703,15 +703,15 @@
         <div id="groups-container" class="cards-grid"></div>
 
       </div>
-      <!-- ── ENDE GRUPPEN-ÜBERSICHT ────────────────────────── -->
+      <!-- â”€â”€ ENDE GRUPPEN-ÃœBERSICHT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
 
-      <!-- ── GRUPPEN-DETAIL ────────────────────────────────── -->
+      <!-- â”€â”€ GRUPPEN-DETAIL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
       <div id="group-detail-view" class="hidden">
 
         <!-- Detail-Header -->
         <div class="detail-header">
           <button class="btn btn-ghost btn-sm" id="btn-back-to-groups">
-            <i class="fa-solid fa-arrow-left"></i> Zurück
+            <i class="fa-solid fa-arrow-left"></i> ZurÃ¼ck
           </button>
           <div id="group-detail-meta"></div>
         </div>
@@ -741,30 +741,30 @@
           <main class="detail-main">
             <h2 class="detail-section-title"
                 id="group-articles-title">
-              Zugehörige Artikel
+              ZugehÃ¶rige Artikel
             </h2>
             <div id="group-articles-toolbar" style="display:none;">
               <div class="view-toolbar" style="margin-bottom:10px;flex-wrap:wrap;gap:8px;">
                 <div class="toolbar-search" style="flex:1;min-width:160px;">
                   <i class="fa-solid fa-magnifying-glass"></i>
                   <input type="search" id="ga-search"
-                         placeholder="ID, Name, Hersteller …"/>
+                         placeholder="ID, Name, Hersteller â€¦"/>
                 </div>
                 <div class="toolbar-filters">
                   <select id="ga-filter-status">
                     <option value="">Alle Status</option>
-                    <option value="Verfügbar">Verfügbar</option>
+                    <option value="VerfÃ¼gbar">VerfÃ¼gbar</option>
                     <option value="Reserviert">Reserviert</option>
                     <option value="Verkauft">Verkauft</option>
                     <option value="Entsorgt">Entsorgt</option>
                   </select>
                   <select id="ga-sort">
-                    <option value="id-asc">ID ↑</option>
-                    <option value="id-desc">ID ↓</option>
+                    <option value="id-asc">ID â†‘</option>
+                    <option value="id-desc">ID â†“</option>
                     <option value="status">Status</option>
                     <option value="condition">Zustand</option>
-                    <option value="price-asc">EK ↑</option>
-                    <option value="price-desc">EK ↓</option>
+                    <option value="price-asc">EK â†‘</option>
+                    <option value="price-desc">EK â†“</option>
                   </select>
                 </div>
               </div>
@@ -774,14 +774,14 @@
 
         </div>
       </div>
-      <!-- ── ENDE GRUPPEN-DETAIL ───────────────────────────── -->
+      <!-- â”€â”€ ENDE GRUPPEN-DETAIL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
 
     </div>
-    <!-- ── ENDE VIEW: GRUPPEN ────────────────────────────────── -->
+    <!-- â”€â”€ ENDE VIEW: GRUPPEN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
 
-    <!-- ════════════════════════════════════════════════════════
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
          VIEW: BESTAND
-    ═════════════════════════════════════════════════════════ -->
+    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     <div id="view-inventory" class="view hidden">
 
       <!-- Toolbar -->
@@ -789,7 +789,7 @@
         <div class="toolbar-search">
           <i class="fa-solid fa-magnifying-glass"></i>
           <input type="search" id="inv-search"
-                 placeholder="Artikel suchen …"
+                 placeholder="Artikel suchen â€¦"
                  aria-label="Artikel durchsuchen"/>
         </div>
         <div class="toolbar-filters">
@@ -823,7 +823,7 @@
           </select>
           <select id="inv-filter-condition"
                   aria-label="Nach Zustand filtern">
-            <option value="">Alle Zustände</option>
+            <option value="">Alle ZustÃ¤nde</option>
             <option value="Neuwertig">Neuwertig</option>
             <option value="Leichte Gebrauchsspuren">
               Leichte Gebrauchsspuren
@@ -838,7 +838,7 @@
           </select>
           <select id="inv-sort" aria-label="Sortierung">
             <option value="date-desc">Neueste zuerst</option>
-            <option value="date-asc">Älteste zuerst</option>
+            <option value="date-asc">Ã„lteste zuerst</option>
             <option value="price-asc">Preis aufsteigend</option>
             <option value="price-desc">Preis absteigend</option>
           </select>
@@ -864,7 +864,7 @@
         <!-- v1.9: Mehrfachauswahl im Bestand aktivieren -->
         <button type="button" class="btn btn-outline btn-sm"
                 id="btn-inv-toggle-selection">
-          <i class="fa-solid fa-check-square"></i> Auswählen
+          <i class="fa-solid fa-check-square"></i> AuswÃ¤hlen
         </button>
       </div>
 
@@ -872,11 +872,11 @@
       <div id="inventory-container" class="cards-grid"></div>
 
     </div>
-    <!-- ── ENDE VIEW: BESTAND ────────────────────────────────── -->
+    <!-- â”€â”€ ENDE VIEW: BESTAND â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
 
-    <!-- ════════════════════════════════════════════════════════
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
          VIEW: VERKAUFT
-    ═════════════════════════════════════════════════════════ -->
+    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     <div id="view-sold" class="view hidden">
 
       <!-- Gewinn-Zusammenfassung -->
@@ -885,19 +885,19 @@
           <span class="sold-summary-label">
             <i class="fa-solid fa-cart-shopping"></i> Einkauf gesamt
           </span>
-          <span class="sold-summary-value" id="sum-purchase">0 €</span>
+          <span class="sold-summary-value" id="sum-purchase">0 â‚¬</span>
         </div>
         <div class="sold-summary-item">
           <span class="sold-summary-label">
             <i class="fa-solid fa-handshake"></i> Verkauf gesamt
           </span>
-          <span class="sold-summary-value" id="sum-revenue">0 €</span>
+          <span class="sold-summary-value" id="sum-revenue">0 â‚¬</span>
         </div>
         <div class="sold-summary-item">
           <span class="sold-summary-label">
             <i class="fa-solid fa-chart-line"></i> Gewinn / Verlust
           </span>
-          <span class="profit-value" id="sum-profit">0 €</span>
+          <span class="profit-value" id="sum-profit">0 â‚¬</span>
         </div>
       </div>
 
@@ -906,12 +906,12 @@
         <div class="toolbar-search">
           <i class="fa-solid fa-magnifying-glass"></i>
           <input type="search" id="sold-search"
-                 placeholder="Verkaufte Artikel suchen …"
+                 placeholder="Verkaufte Artikel suchen â€¦"
                  aria-label="Verkaufte Artikel durchsuchen"/>
         </div>
         <div class="toolbar-filters">
-          <select id="sold-period-preset" aria-label="Zeitraum wählen">
-            <option value="">Alle Zeiträume</option>
+          <select id="sold-period-preset" aria-label="Zeitraum wÃ¤hlen">
+            <option value="">Alle ZeitrÃ¤ume</option>
             <option value="week">Diese Woche</option>
             <option value="month">Dieser Monat</option>
             <option value="quarter">Dieses Quartal</option>
@@ -921,7 +921,7 @@
           <div id="sold-date-range-wrapper"
                style="display:none;align-items:center;gap:6px;flex-wrap:wrap;">
             <input type="date" id="sold-date-from" aria-label="Verkaufsdatum von"/>
-            <span style="color:var(--color-muted);font-weight:600;">–</span>
+            <span style="color:var(--color-muted);font-weight:600;">â€“</span>
             <input type="date" id="sold-date-to"   aria-label="Verkaufsdatum bis"/>
           </div>
         </div>
@@ -931,11 +931,11 @@
       <div id="sold-container" class="cards-grid"></div>
 
     </div>
-    <!-- ── ENDE VIEW: VERKAUFT ───────────────────────────────── -->
+    <!-- â”€â”€ ENDE VIEW: VERKAUFT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
 
-    <!-- ════════════════════════════════════════════════════════
-         VIEW: ENZYKLOPÄDIE
-    ═════════════════════════════════════════════════════════ -->
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+         VIEW: ENZYKLOPÃ„DIE
+    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     <div id="view-encyclopedia" class="view hidden">
 
       <!-- Toolbar -->
@@ -943,14 +943,14 @@
         <div class="toolbar-search">
           <i class="fa-solid fa-magnifying-glass"></i>
           <input type="search" id="enc-search"
-                 placeholder="Alle Artikel durchsuchen …"
-                 aria-label="Enzyklopädie durchsuchen"/>
+                 placeholder="Alle Artikel durchsuchen â€¦"
+                 aria-label="EnzyklopÃ¤die durchsuchen"/>
         </div>
         <div class="toolbar-filters">
           <select id="enc-filter-status"
                   aria-label="Nach Status filtern">
             <option value="">Alle Status</option>
-            <option value="Verfügbar">Verfügbar</option>
+            <option value="VerfÃ¼gbar">VerfÃ¼gbar</option>
             <option value="Reserviert">Reserviert</option>
             <option value="Verkauft">Verkauft</option>
             <option value="Entsorgt">Entsorgt</option>
@@ -1006,10 +1006,10 @@
               </th>
               <th>Gruppe</th>
               <th data-sort="purchasePrice">
-                EK (€) <i class="fa-solid fa-sort"></i>
+                EK (â‚¬) <i class="fa-solid fa-sort"></i>
               </th>
               <th data-sort="soldPrice">
-                VK (€) <i class="fa-solid fa-sort"></i>
+                VK (â‚¬) <i class="fa-solid fa-sort"></i>
               </th>
               <th data-sort="location">
                 Standort <i class="fa-solid fa-sort"></i>
@@ -1034,15 +1034,15 @@
       </div>
 
     </div>
-    <!-- ── ENDE VIEW: ENZYKLOPÄDIE ───────────────────────────── -->
+    <!-- â”€â”€ ENDE VIEW: ENZYKLOPÃ„DIE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
 
-    <!-- ════════════════════════════════════════════════════════
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
          VIEW: TOOLS
-    ═════════════════════════════════════════════════════════ -->
+    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     <div id="view-tools" class="view hidden">
       <div class="view-content">
 
-        <!-- ── Export CSV ──────────────────────────────────── -->
+        <!-- â”€â”€ Export CSV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
         <div class="tool-card">
           <div class="tool-card-header">
             <div class="tool-card-icon">
@@ -1062,7 +1062,7 @@
           </button>
         </div>
 
-        <!-- ── Import CSV ──────────────────────────────────── -->
+        <!-- â”€â”€ Import CSV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
         <div class="tool-card">
           <div class="tool-card-header">
             <div class="tool-card-icon">
@@ -1079,13 +1079,13 @@
           </div>
           <label class="btn btn-outline" style="cursor:pointer;">
             <i class="fa-solid fa-upload"></i>
-            Datei auswählen
+            Datei auswÃ¤hlen
             <input type="file" id="btn-import-csv-input"
                    accept=".csv,.xlsx,.xls" style="display:none"/>
           </label>
         </div>
 
-        <!-- ── NEU v1.4: Auto-Gruppen-Zuweisung ───────────── -->
+        <!-- â”€â”€ NEU v1.4: Auto-Gruppen-Zuweisung â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
         <div class="tool-card">
           <div class="tool-card-header">
             <div class="tool-card-icon"
@@ -1099,7 +1099,7 @@
               </h3>
               <p class="tool-card-desc">
                 Alle Artikel ohne Gruppe werden automatisch einer
-                passenden bestehenden Gruppe zugeordnet — oder
+                passenden bestehenden Gruppe zugeordnet â€” oder
                 einer neuen (Name = Hersteller + Modell).
               </p>
             </div>
@@ -1115,7 +1115,7 @@
                          color:var(--color-primary);
                          font-weight:600;">
               <i class="fa-solid fa-equals"></i>
-              Gleiche Artikel → gleiche Gruppe
+              Gleiche Artikel â†’ gleiche Gruppe
             </span>
             <span style="display:inline-flex;align-items:center;gap:6px;
                          padding:4px 10px;
@@ -1136,17 +1136,17 @@
                          color:var(--color-muted);
                          font-weight:600;">
               <i class="fa-solid fa-shield-halved"></i>
-              Manuell zugeordnete Artikel bleiben unberührt
+              Manuell zugeordnete Artikel bleiben unberÃ¼hrt
             </span>
           </div>
 
           <button class="btn btn-primary" id="btn-auto-group-all">
             <i class="fa-solid fa-wand-magic-sparkles"></i>
-            Jetzt ausführen
+            Jetzt ausfÃ¼hren
           </button>
         </div>
 
-        <!-- ── JSON-Backup ─────────────────────────────────── -->
+        <!-- â”€â”€ JSON-Backup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
         <div class="tool-card">
           <div class="tool-card-header">
             <div class="tool-card-icon">
@@ -1155,7 +1155,7 @@
             <div>
               <h3 class="tool-card-title">JSON-Backup</h3>
               <p class="tool-card-desc">
-                Erstellt ein vollständiges Backup aller Artikel
+                Erstellt ein vollstÃ¤ndiges Backup aller Artikel
                 und Gruppen als JSON-Datei.
               </p>
             </div>
@@ -1166,7 +1166,7 @@
           </button>
         </div>
 
-        <!-- ── QR-Scanner ──────────────────────────────────── -->
+        <!-- â”€â”€ QR-Scanner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
         <div class="tool-card">
           <div class="tool-card-header">
             <div class="tool-card-icon">
@@ -1177,7 +1177,7 @@
               <p class="tool-card-desc">
                 Scanne einen Artikel-QR-Code oder gib die
                 Artikel-ID manuell ein, um Status und Standort
-                schnell zu ändern.
+                schnell zu Ã¤ndern.
               </p>
             </div>
           </div>
@@ -1191,7 +1191,7 @@
                         color:var(--color-muted);
                         pointer-events:none;"></i>
               <input type="text" id="scanner-input"
-                     placeholder="Artikel-ID scannen oder eingeben …"
+                     placeholder="Artikel-ID scannen oder eingeben â€¦"
                      style="padding-left:38px;width:100%;"
                      autocomplete="off"
                      autocorrect="off"
@@ -1205,12 +1205,12 @@
                           border-radius:4px;font-size:0.75rem;">
                 Enter
               </kbd>
-              zum Bestätigen
+              zum BestÃ¤tigen
             </span>
           </div>
         </div>
 
-        <!-- ── Datenbank zurücksetzen ──────────────────────── -->
+        <!-- â”€â”€ Datenbank zurÃ¼cksetzen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
         <div class="tool-card">
           <div class="tool-card-header">
             <div class="tool-card-icon"
@@ -1221,8 +1221,8 @@
             <div>
               <h3 class="tool-card-title">Standort-QR erstellen</h3>
               <p class="tool-card-desc">
-                Erzeuge einen QR-Code fÃ¼r einen Lagerplatz oder Standort,
-                damit du ihn spÃ¤ter beim Einlagern und Umlagern direkt scannen kannst.
+                Erzeuge einen QR-Code für einen Lagerplatz oder Standort,
+                damit du ihn später beim Einlagern und Umlagern direkt scannen kannst.
               </p>
             </div>
           </div>
@@ -1270,10 +1270,10 @@
             <div>
               <h3 class="tool-card-title"
                   style="color:var(--color-danger);">
-                Datenbank zurücksetzen
+                Datenbank zurÃ¼cksetzen
               </h3>
               <p class="tool-card-desc">
-                Löscht <strong>alle</strong> Artikel und Gruppen
+                LÃ¶scht <strong>alle</strong> Artikel und Gruppen
                 unwiderruflich aus dem lokalen Speicher.
                 Erstelle vorher ein JSON-Backup.
               </p>
@@ -1281,14 +1281,14 @@
           </div>
           <button class="btn btn-danger" id="btn-reset-db">
             <i class="fa-solid fa-trash-can"></i>
-            Datenbank zurücksetzen
+            Datenbank zurÃ¼cksetzen
           </button>
         </div>
 
       </div>
     </div>
-    <!-- ── ENDE VIEW: TOOLS ──────────────────────────────────── -->
-      <!-- ── VIEW: SCANNER ─────────────────────────────────────── -->
+    <!-- â”€â”€ ENDE VIEW: TOOLS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+      <!-- â”€â”€ VIEW: SCANNER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
       <div id="view-scanner" class="view hidden">
         <div class="view-content">
 
@@ -1343,7 +1343,7 @@
                   <i class="fa-solid fa-arrow-rotate-left"></i> Letzten entfernen
                 </button>
                 <button class="btn btn-primary" id="scanner-relocate-apply">
-                  <i class="fa-solid fa-location-dot"></i> Standort Ã¼bernehmen
+                  <i class="fa-solid fa-location-dot"></i> Standort übernehmen
                 </button>
               </div>
             </div>
@@ -1375,21 +1375,21 @@
 
         </div>
       </div>
-      <!-- ── ENDE VIEW: SCANNER ─────────────────────────────────── -->
+      <!-- â”€â”€ ENDE VIEW: SCANNER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
 
 
   </div>
-  <!-- ── ENDE MAIN ─────────────────────────────────────────────── -->
+  <!-- â”€â”€ ENDE MAIN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
 
 </div>
-<!-- ── ENDE APP ───────────────────────────────────────────────── -->
+<!-- â”€â”€ ENDE APP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
 <!-- ============================================================
-     SKRIPTE – am Ende des Body laden für beste Performance
+     SKRIPTE â€“ am Ende des Body laden fÃ¼r beste Performance
 ============================================================ -->
 
 <!--
   QRCode.js wird bereits im <head> mit defer geladen.
-  app.js MUSS nach dem DOM stehen → kein defer nötig, da
+  app.js MUSS nach dem DOM stehen â†’ kein defer nÃ¶tig, da
   DOMContentLoaded in App.init() abgewartet wird.
 -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
