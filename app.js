@@ -632,19 +632,15 @@ const Utils = {
 
   repairVisibleString(value) {
     const input = String(value ?? '');
-    if (!/[ÃÂâð]/.test(input)) return input;
-    let repaired = input;
-    for (let i = 0; i < 3; i++) {
-      try {
-        const bytes = Uint8Array.from(Array.from(repaired, ch => ch.charCodeAt(0) & 0xff));
-        const decoded = new TextDecoder('utf-8').decode(bytes);
-        if (!decoded || decoded === repaired) break;
-        repaired = decoded;
-      } catch (_) {
-        break;
-      }
-    }
-    return repaired
+    if (!/[ÃÂâð�]/.test(input)) return input;
+    let repaired = input
+      .replace(/Ã¼/g, 'ü')
+      .replace(/Ã¶/g, 'ö')
+      .replace(/Ã¤/g, 'ä')
+      .replace(/ÃŸ/g, 'ß')
+      .replace(/Ãœ/g, 'Ü')
+      .replace(/Ã–/g, 'Ö')
+      .replace(/Ã„/g, 'Ä')
       .replace(/Â·/g, '·')
       .replace(/Â /g, ' ')
       .replace(/Ã—/g, '×')
@@ -657,6 +653,37 @@ const Utils = {
       .replace(/â€ž/g, '„')
       .replace(/â€/g, '”')
       .replace(/âœ“/g, '✓');
+    for (let i = 0; i < 3; i++) {
+      try {
+        const bytes = Uint8Array.from(Array.from(repaired, ch => ch.charCodeAt(0) & 0xff));
+        const decoded = new TextDecoder('utf-8').decode(bytes);
+        if (!decoded || decoded === repaired) break;
+        repaired = decoded;
+      } catch (_) {
+        break;
+      }
+    }
+    return repaired
+      .replace(/Ã¼/g, 'ü')
+      .replace(/Ã¶/g, 'ö')
+      .replace(/Ã¤/g, 'ä')
+      .replace(/ÃŸ/g, 'ß')
+      .replace(/Ãœ/g, 'Ü')
+      .replace(/Ã–/g, 'Ö')
+      .replace(/Ã„/g, 'Ä')
+      .replace(/Â·/g, '·')
+      .replace(/Â /g, ' ')
+      .replace(/Ã—/g, '×')
+      .replace(/â‚¬/g, '€')
+      .replace(/â€“/g, '–')
+      .replace(/â€”/g, '—')
+      .replace(/â€¦/g, '…')
+      .replace(/â†’/g, '→')
+      .replace(/â€œ/g, '“')
+      .replace(/â€ž/g, '„')
+      .replace(/â€/g, '”')
+      .replace(/âœ“/g, '✓')
+      .replace(/�/g, '');
   },
 
   repairVisibleDom(root = document.body) {
