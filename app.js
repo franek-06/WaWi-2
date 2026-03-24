@@ -629,6 +629,94 @@ const Utils = {
       timeoutId = window.setTimeout(() => fn(...args), wait);
     };
   },
+
+  repairVisibleString(value) {
+    const input = String(value ?? '');
+    if (!/[ÃÂâð]/.test(input)) return input;
+    let repaired = input;
+    for (let i = 0; i < 3; i++) {
+      try {
+        const bytes = Uint8Array.from(Array.from(repaired, ch => ch.charCodeAt(0) & 0xff));
+        const decoded = new TextDecoder('utf-8').decode(bytes);
+        if (!decoded || decoded === repaired) break;
+        repaired = decoded;
+      } catch (_) {
+        break;
+      }
+    }
+    return repaired
+      .replace(/Â·/g, '·')
+      .replace(/Â /g, ' ')
+      .replace(/Ã—/g, '×')
+      .replace(/â‚¬/g, '€')
+      .replace(/â€“/g, '–')
+      .replace(/â€”/g, '—')
+      .replace(/â€¦/g, '…')
+      .replace(/â†’/g, '→')
+      .replace(/â€œ/g, '“')
+      .replace(/â€ž/g, '„')
+      .replace(/â€/g, '”')
+      .replace(/âœ“/g, '✓');
+  },
+
+  repairVisibleDom(root = document.body) {
+    if (!root) return;
+    const textTargets = [];
+    if (root.nodeType === Node.TEXT_NODE) {
+      textTargets.push(root);
+    } else if (root.querySelectorAll) {
+      textTargets.push(...root.querySelectorAll('*'));
+    }
+
+    textTargets.forEach(node => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const fixed = this.repairVisibleString(node.textContent);
+        if (fixed !== node.textContent) node.textContent = fixed;
+        return;
+      }
+
+      if (node.matches('script, style')) return;
+
+      Array.from(node.childNodes).forEach(child => {
+        if (child.nodeType !== Node.TEXT_NODE) return;
+        const fixed = this.repairVisibleString(child.textContent);
+        if (fixed !== child.textContent) child.textContent = fixed;
+      });
+
+      ['placeholder', 'title', 'aria-label', 'data-tooltip'].forEach(attr => {
+        const current = node.getAttribute(attr);
+        if (current == null) return;
+        const fixed = this.repairVisibleString(current);
+        if (fixed !== current) node.setAttribute(attr, fixed);
+      });
+    });
+
+    document.title = this.repairVisibleString(document.title);
+  },
+
+  observeVisibleTextRepair() {
+    if (this._visibleTextRepairObserver) return;
+    this.repairVisibleDom(document.body);
+    this._visibleTextRepairObserver = new MutationObserver(mutations => {
+      mutations.forEach(mutation => {
+        if (mutation.type === 'characterData') {
+          this.repairVisibleDom(mutation.target);
+          return;
+        }
+        mutation.addedNodes.forEach(node => this.repairVisibleDom(node));
+        if (mutation.type === 'attributes' && mutation.target) {
+          this.repairVisibleDom(mutation.target);
+        }
+      });
+    });
+    this._visibleTextRepairObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['placeholder', 'title', 'aria-label', 'data-tooltip'],
+    });
+  },
 };
 
 /* ============================================================
@@ -1602,6 +1690,8 @@ const InventorySelection = {
       +   '<i class="fa-solid fa-circle-check"></i> Verf\u00fcgbar</button>'
       + '<button class="btn btn-danger btn-sm" id="inv-bulk-dispose" type="button">'
       +   '<i class="fa-solid fa-box-archive"></i> Entsorgen</button>'
+      + '<button class="btn btn-danger btn-sm" id="inv-bulk-delete" type="button">'
+      +   '<i class="fa-solid fa-trash-can"></i> L\u00f6schen</button>'
       + '</div>';
     document.body.appendChild(bar);
     bar.querySelector('#inv-bulk-select-all').addEventListener('click', () => this.selectAll());
@@ -1610,6 +1700,7 @@ const InventorySelection = {
     bar.querySelector('#inv-bulk-reserve').addEventListener('click', () => this._bulkSetStatus('Reserviert'));
     bar.querySelector('#inv-bulk-available').addEventListener('click', () => this._bulkSetStatus('Verf\u00fcgbar'));
     bar.querySelector('#inv-bulk-dispose').addEventListener('click', () => this._bulkDispose());
+    bar.querySelector('#inv-bulk-delete').addEventListener('click', () => this._bulkDelete());
     return bar;
   },
 
@@ -1645,6 +1736,68 @@ const InventorySelection = {
           Inventory.render();
           Dashboard.renderStats();
           Toast.success(n + ' Artikel entsorgt.');
+        });
+      }
+    );
+  },
+
+  _bulkDelete() {
+    const ids = [...this._selectedIds];
+    if (!ids.length) return;
+    const n = ids.length;
+    Modal.open(
+      '<h2 class="modal-title" style="color:var(--color-danger);">'
+      + '<i class="fa-solid fa-trash-can"></i> ' + n + ' Artikel l\u00f6schen</h2>'
+      + '<p>Was soll mit den <strong>' + n + ' ausgew\u00e4hlten Artikeln</strong> passieren?</p>'
+      + '<div class="delete-option-card" id="inv-bulk-del-opt-soft">'
+      +   '<div class="delete-option-card__header">'
+      +     '<i class="fa-solid fa-box-archive" style="color:var(--color-warning);"></i>'
+      +     '<strong>Entsorgen</strong>'
+      +     '<span class="badge badge-status-entsorgt" style="margin-left:auto;">In Enzyklop\u00e4die behalten</span>'
+      +   '</div>'
+      +   '<p class="delete-option-card__desc">Alle ausgew\u00e4hlten Artikel bekommen Status <em>Entsorgt</em>, werden aus Gruppen gel\u00f6st und bleiben in der Enzyklop\u00e4die auffindbar.</p>'
+      + '</div>'
+      + '<div class="delete-option-card" id="inv-bulk-del-opt-hard">'
+      +   '<div class="delete-option-card__header">'
+      +     '<i class="fa-solid fa-fire-flame-curved" style="color:var(--color-danger);"></i>'
+      +     '<strong>Dauerhaft l\u00f6schen</strong>'
+      +     '<span style="margin-left:auto;font-size:var(--font-size-xs);background:var(--color-danger-light);color:var(--color-danger);padding:2px 8px;border-radius:99px;font-weight:700;">Endg\u00fcltig</span>'
+      +   '</div>'
+      +   '<p class="delete-option-card__desc">Alle ausgew\u00e4hlten Artikel werden <strong>vollst\u00e4ndig und unwiderruflich</strong> entfernt.</p>'
+      + '</div>'
+      + '<div class="modal-actions" style="margin-top:20px;">'
+      +   '<button class="btn btn-ghost" onclick="Modal.close()"><i class="fa-solid fa-xmark"></i> Abbrechen</button>'
+      +   '<button class="btn btn-danger" id="inv-bulk-delete-confirm" disabled>'
+      +     '<i class="fa-solid fa-trash-can"></i> Best\u00e4tigen'
+      +   '</button>'
+      + '</div>',
+      content => {
+        const softCard   = content.querySelector('#inv-bulk-del-opt-soft');
+        const hardCard   = content.querySelector('#inv-bulk-del-opt-hard');
+        const confirmBtn = content.querySelector('#inv-bulk-delete-confirm');
+        let mode = null;
+        const selectCard = (sel, other, m) => {
+          mode = m;
+          sel.classList.add('is-selected');
+          other.classList.remove('is-selected');
+          confirmBtn.disabled = false;
+        };
+        softCard.addEventListener('click', () => selectCard(softCard, hardCard, 'soft'));
+        hardCard.addEventListener('click', () => selectCard(hardCard, softCard, 'hard'));
+        confirmBtn.addEventListener('click', () => {
+          if (!mode) return;
+          if (mode === 'soft') {
+            DB.updateArticles(ids, { status: 'Entsorgt', groupId: null });
+            Modal.close();
+            Toast.success(n + ' Artikel entsorgt — bleiben in der Enzyklopädie.');
+          } else {
+            ids.forEach(id => DB.hardDeleteArticle(id));
+            Modal.close();
+            Toast.success(n + ' Artikel dauerhaft gelöscht.');
+          }
+          this.leave();
+          Inventory.render();
+          Dashboard.renderStats();
         });
       }
     );
@@ -2913,6 +3066,7 @@ const GroupSelection = {
       + '<button class="btn btn-outline btn-sm" id="bulk-btn-reserve" type="button"><i class="fa-solid fa-clock"></i> Reservieren</button>'
       + '<button class="btn btn-ghost btn-sm" id="bulk-btn-available" type="button"><i class="fa-solid fa-circle-check"></i> Verf\u00fcgbar</button>'
       + '<button class="btn btn-outline btn-sm" id="bulk-btn-edit" type="button"><i class="fa-solid fa-pen-to-square"></i> Bearbeiten</button>'
+      + '<button class="btn btn-danger btn-sm" id="bulk-btn-delete" type="button"><i class="fa-solid fa-trash-can"></i> L\u00f6schen</button>'
       + '</div>';
     document.body.appendChild(bar);
     bar.querySelector('#bulk-btn-select-all').addEventListener('click', () => this.selectAll());
@@ -2921,6 +3075,7 @@ const GroupSelection = {
     bar.querySelector('#bulk-btn-sell').addEventListener('click', () => this.openSellModal());
     bar.querySelector('#bulk-btn-reserve').addEventListener('click', () => this._bulkSetStatus('Reserviert'));
     bar.querySelector('#bulk-btn-available').addEventListener('click', () => this._bulkSetStatus('Verf\u00fcgbar'));
+    bar.querySelector('#bulk-btn-delete').addEventListener('click', () => this.openBulkDeleteModal());
     return bar;
   },
 
@@ -2980,6 +3135,62 @@ const GroupSelection = {
     Modal.close(); const gid = this._groupId; this.leave();
     Groups._renderGroupArticles(gid); Dashboard.renderStats();
     Toast.success(n + ' Artikel als verkauft gespeichert.');
+  },
+
+  openBulkDeleteModal() {
+    const ids = [...this._selectedIds];
+    if (!ids.length) return;
+    const n = ids.length;
+    const gid = this._groupId;
+    Modal.open(
+      '<h2 class="modal-title" style="color:var(--color-danger);"><i class="fa-solid fa-trash-can"></i> '
+      + n + ' Artikel l\u00f6schen</h2>'
+      + '<p>Was soll mit den <strong>' + n + ' ausgew\u00e4hlten Artikeln</strong> passieren?</p>'
+      + '<div class="delete-option-card" id="grp-bulk-del-opt-soft">'
+      +   '<div class="delete-option-card__header"><i class="fa-solid fa-box-archive" style="color:var(--color-warning);"></i><strong>Entsorgen</strong>'
+      +   '<span class="badge badge-status-entsorgt" style="margin-left:auto;">In Enzyklop\u00e4die behalten</span></div>'
+      +   '<p class="delete-option-card__desc">Alle ausgew\u00e4hlten Artikel bekommen Status <em>Entsorgt</em>, werden aus der Gruppe gel\u00f6st und bleiben in der Enzyklop\u00e4die auffindbar.</p>'
+      + '</div>'
+      + '<div class="delete-option-card" id="grp-bulk-del-opt-hard">'
+      +   '<div class="delete-option-card__header"><i class="fa-solid fa-fire-flame-curved" style="color:var(--color-danger);"></i><strong>Dauerhaft l\u00f6schen</strong>'
+      +   '<span style="margin-left:auto;font-size:var(--font-size-xs);background:var(--color-danger-light);color:var(--color-danger);padding:2px 8px;border-radius:99px;font-weight:700;">Endg\u00fcltig</span></div>'
+      +   '<p class="delete-option-card__desc">Alle ausgew\u00e4hlten Artikel werden <strong>vollst\u00e4ndig und unwiderruflich</strong> entfernt.</p>'
+      + '</div>'
+      + '<div class="modal-actions" style="margin-top:20px;"><button class="btn btn-ghost" onclick="Modal.close()"><i class="fa-solid fa-xmark"></i> Abbrechen</button>'
+      +   '<button class="btn btn-danger" id="grp-bulk-delete-confirm" disabled><i class="fa-solid fa-trash-can"></i> Best\u00e4tigen</button></div>',
+      content => {
+        const softCard   = content.querySelector('#grp-bulk-del-opt-soft');
+        const hardCard   = content.querySelector('#grp-bulk-del-opt-hard');
+        const confirmBtn = content.querySelector('#grp-bulk-delete-confirm');
+        let mode = null;
+        const selectCard = (sel, other, m) => {
+          mode = m;
+          sel.classList.add('is-selected');
+          other.classList.remove('is-selected');
+          confirmBtn.disabled = false;
+        };
+        softCard.addEventListener('click', () => selectCard(softCard, hardCard, 'soft'));
+        hardCard.addEventListener('click', () => selectCard(hardCard, softCard, 'hard'));
+        confirmBtn.addEventListener('click', () => {
+          if (!mode) return;
+          if (mode === 'soft') {
+            DB.updateArticles(ids, { status: 'Entsorgt', groupId: null });
+            Modal.close();
+            Toast.success(n + ' Artikel entsorgt — bleiben in der Enzyklopädie.');
+          } else {
+            ids.forEach(id => DB.hardDeleteArticle(id));
+            Modal.close();
+            Toast.success(n + ' Artikel dauerhaft gelöscht.');
+          }
+          this.leave();
+          if (gid) {
+            Groups._renderGroupArticles(gid);
+            Groups._renderGroupInfoCard(DB.getGroupById(gid));
+          }
+          Dashboard.renderStats();
+        });
+      }
+    );
   },
 
   openBulkEditModal() {
@@ -4906,6 +5117,7 @@ const App = {
 
   async init() {
     await DB._ready;
+    Utils.observeVisibleTextRepair();
     Modal.init();
     Sidebar.init();
     Router.init();
@@ -4982,6 +5194,7 @@ const App = {
 
 document.addEventListener('DOMContentLoaded', () => {
   let appInitialized = false;
+  Utils.observeVisibleTextRepair();
 
   document.getElementById('google-login-btn').addEventListener('click', () => {
     _auth.signInWithPopup(_googleProvider).catch(e => {
