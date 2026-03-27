@@ -1208,8 +1208,32 @@ const QRManager = {
     return location || null;
   },
 
+  hasConfiguredPublicBaseUrl() {
+    try {
+      const base = new URL(PUBLIC_QR_CONFIG.baseUrl);
+      return !/deine-domain\.de$/i.test(base.hostname);
+    } catch (_) {
+      return false;
+    }
+  },
+
+  getListingQrText(article) {
+    const value = String(article?.listingLink ?? '').trim();
+    if (!value) return '';
+    try {
+      const url = new URL(value);
+      return /^https?:$/i.test(url.protocol) ? url.toString() : '';
+    } catch (_) {
+      return '';
+    }
+  },
+
   getArticleQrText(article) {
-    return PublicQr.getArticleUrl(article);
+    const listingQrText = this.getListingQrText(article);
+    if (listingQrText) return listingQrText;
+    const publicQrUrl = PublicQr.getArticleUrl(article);
+    if (this.hasConfiguredPublicBaseUrl() && publicQrUrl) return publicQrUrl;
+    return String(article?.id ?? '').trim();
   },
 
   _openPrintWindow({ title, label, qrText, subtitle = '' }) {
@@ -1329,6 +1353,11 @@ const ScanResolver = {
       };
     }
 
+    const listingArticle = DB.getArticleByListingLink(value);
+    if (listingArticle) {
+      return { type: 'article-listing', value, article: listingArticle };
+    }
+
     if (this.isLikelyListingCode(value)) {
       return { type: 'unknown', value, reason: 'listing' };
     }
@@ -1361,6 +1390,7 @@ const ScanResolver = {
       'article-internal' : 'Erkannt über interne Artikel-ID',
       'article-external' : 'Erkannt über Fremd-QR-Code',
       'article-public-url': 'Erkannt über öffentlichen 2-in-1-QR-Code',
+      'article-listing'  : 'Erkannt über Kleinanzeigen-Link',
     })[type] ?? 'Artikel erkannt';
   },
 
@@ -1420,6 +1450,13 @@ const ScanResolver = {
       return {
         ok: false,
         message: 'Öffentliche 2-in-1-QR-URLs können nicht als Fremd-QR-Code gespeichert werden.',
+      };
+    }
+
+    if (resolution.type === 'article-listing') {
+      return {
+        ok: false,
+        message: 'Kleinanzeigen-QR-Codes oder Kleinanzeigen-Links können hier nicht verwendet werden.',
       };
     }
 
@@ -1769,7 +1806,7 @@ const Dashboard = {
     const urlEl   = document.getElementById('art-public-qr-url');
     if (!tokenEl || !urlEl) return;
     tokenEl.value = article ? PublicQr.getArticleToken(article) : '';
-    urlEl.value   = article ? PublicQr.getArticleUrl(article)   : '';
+    urlEl.value   = article ? QRManager.getArticleQrText(article) : '';
   },
 
   async saveArticle() {
@@ -1856,7 +1893,7 @@ const Dashboard = {
       document.getElementById('art-qr-section').style.display = 'block';
       State.editingArticleId = saved.id;
       this.syncPublicQrFields(saved);
-      QRManager.generate('art-qr-preview', PublicQr.getArticleUrl(saved), 128);
+      QRManager.generate('art-qr-preview', QRManager.getArticleQrText(saved), 128);
       this.renderStats();
       const savedId = saved.id;
       setTimeout(() => {
@@ -1884,7 +1921,7 @@ const Dashboard = {
     document.getElementById('art-qr-section').style.display = 'block';
     State.editingArticleId = firstId;
     this.syncPublicQrFields(firstArticle);
-    QRManager.generate('art-qr-preview', PublicQr.getArticleUrl(firstArticle), 128);
+    QRManager.generate('art-qr-preview', QRManager.getArticleQrText(firstArticle), 128);
     document.getElementById('qty-hint-banner')?.remove();
     if (qty > 1) {
       Toast.success(qty + ' Artikel angelegt (' + articleIds[0] + '-' + articleIds[articleIds.length - 1] + ') Â· Gruppe "' + Utils.escHtml(group.name) + '".');
@@ -1984,7 +2021,7 @@ const Dashboard = {
 
     document.getElementById('art-qr-section').style.display = 'block';
     this.syncPublicQrFields(a);
-    QRManager.generate('art-qr-preview', PublicQr.getArticleUrl(a), 128);
+    QRManager.generate('art-qr-preview', QRManager.getArticleQrText(a), 128);
 
     Router.navigate('dashboard');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -6055,6 +6092,7 @@ const QRScanner = {
       resolved.type === 'article-internal'
       || resolved.type === 'article-external'
       || resolved.type === 'article-public-url'
+      || resolved.type === 'article-listing'
     ) {
       const article = resolved.article;
       if (this._relocateAwaitingLocationScan) {
