@@ -1603,8 +1603,11 @@ const Dashboard = {
     sel.appendChild(group);
   },
 
-  populateGroupDropdown() {
+  populateGroupDropdown(selectedValue = null) {
     const sel    = document.getElementById('art-group-assign');
+    if (!sel) return;
+    const fallbackValue = document.getElementById('article-edit-group-id')?.value ?? '';
+    const desiredValue = selectedValue ?? sel.value ?? fallbackValue ?? '';
     const groups = DB.getGroups().filter(g => g.status !== 'Entsorgt');
     sel.innerHTML =
       `<option value="">â€“ Automatisch zuordnen â€“</option>` +
@@ -1614,6 +1617,7 @@ const Dashboard = {
           : g.id;
         return `<option value="${g.id}">${Utils.escHtml(label)}</option>`;
       }).join('');
+    sel.value = groups.some(group => group.id === desiredValue) ? desiredValue : '';
   },
 
   renderStats() {
@@ -2099,6 +2103,7 @@ const Dashboard = {
 
     this.resetArticleForm();
     this.populateArticleCategoryDropdown(a.category);
+    this.populateGroupDropdown(a.groupId ?? '');
     State.editingArticleId = id;
     State.articleReturnGroupId = returnGroupId;
 
@@ -2128,6 +2133,7 @@ const Dashboard = {
     document.getElementById('art-listing-link').value  = a.listingLink  ?? '';
     document.getElementById('art-pickup-zip').value    = a.pickupZip    ?? '';
     document.getElementById('art-notes').value         = a.notes        ?? '';
+    document.getElementById('article-edit-group-id').value = a.groupId ?? '';
 
     if (a.groupId) {
       document.getElementById('art-group-assign').value = a.groupId;
