@@ -15,17 +15,21 @@ const _auth           = firebase.auth();
 const _googleProvider = new firebase.auth.GoogleAuthProvider();
 const PUBLIC_QR_CONFIG = (() => {
   const cleanOrigin = String(window.location.origin ?? '').trim().replace(/\/+$/, '');
-  const cleanPathname = String(window.location.pathname ?? '').trim();
   const isUsableCurrentOrigin =
     /^https?:\/\//i.test(cleanOrigin) &&
     !/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(cleanOrigin) &&
     cleanOrigin !== 'null';
-  const currentAppUrl = isUsableCurrentOrigin
-    ? `${cleanOrigin}${cleanPathname || '/'}`
+  const cleanPathname = String(window.location.pathname ?? '').trim() || '/';
+  const appPathname = cleanPathname.endsWith('.html')
+    ? cleanPathname.replace(/[^/]+$/, '')
+    : cleanPathname;
+  const normalizedAppPath = appPathname.endsWith('/') ? appPathname : `${appPathname}/`;
+  const currentAppBaseUrl = isUsableCurrentOrigin
+    ? `${cleanOrigin}${normalizedAppPath}`
     : '';
   const fallbackOrigin = `https://${firebaseConfig.authDomain}`.replace(/\/+$/, '');
   return {
-    baseUrl: `${isUsableCurrentOrigin ? currentAppUrl : fallbackOrigin}/#/a/`,
+    baseUrl: `${isUsableCurrentOrigin ? currentAppBaseUrl : `${fallbackOrigin}/`}#/a/`,
   };
 })();
 const INITIAL_PUBLIC_QR_ROUTE = (() => {
