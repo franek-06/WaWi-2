@@ -791,6 +791,24 @@ const Utils = {
       .replace(/ausgew�hlt/g, 'ausgewählt')
       .replace(/best�tigen/g, 'bestätigen')
       .replace(/Best�tigen/g, 'Bestätigen')
+      .replace(/Ã¤ndern/g, 'ändern')
+      .replace(/Ã„ndern/g, 'Ändern')
+      .replace(/Ã„nderungen/g, 'Änderungen')
+      .replace(/wÃ¤hlen/g, 'wählen')
+      .replace(/WÃ¤hlen/g, 'Wählen')
+      .replace(/ZustÃ¤nde/g, 'Zustände')
+      .replace(/ZeitrÃ¤ume/g, 'Zeiträume')
+      .replace(/ZurÃ¼ck/g, 'Zurück')
+      .replace(/zurÃ¼ck/g, 'zurück')
+      .replace(/SchlieÃŸen/g, 'Schließen')
+      .replace(/schlieÃŸen/g, 'schließen')
+      .replace(/gÃ¼ltig/g, 'gültig')
+      .replace(/gÃ¼ltigen/g, 'gültigen')
+      .replace(/vollstÃ¤ndig/g, 'vollständig')
+      .replace(/vollstÃ¤ndiges/g, 'vollständiges')
+      .replace(/unberÃ¼hrt/g, 'unberührt')
+      .replace(/rÃ¼ckgÃ¤ngig/g, 'rückgängig')
+      .replace(/rÃ¼cksetzen/g, 'rücksetzen')
       .replace(/gel�st/g, 'gelöst')
       .replace(/vollst�ndig/g, 'vollständig')
       .replace(/r�ckg�ngig/g, 'rückgängig')
@@ -862,6 +880,24 @@ const Utils = {
       .replace(/ausgew�hlt/g, 'ausgewählt')
       .replace(/best�tigen/g, 'bestätigen')
       .replace(/Best�tigen/g, 'Bestätigen')
+      .replace(/Ã¤ndern/g, 'ändern')
+      .replace(/Ã„ndern/g, 'Ändern')
+      .replace(/Ã„nderungen/g, 'Änderungen')
+      .replace(/wÃ¤hlen/g, 'wählen')
+      .replace(/WÃ¤hlen/g, 'Wählen')
+      .replace(/ZustÃ¤nde/g, 'Zustände')
+      .replace(/ZeitrÃ¤ume/g, 'Zeiträume')
+      .replace(/ZurÃ¼ck/g, 'Zurück')
+      .replace(/zurÃ¼ck/g, 'zurück')
+      .replace(/SchlieÃŸen/g, 'Schließen')
+      .replace(/schlieÃŸen/g, 'schließen')
+      .replace(/gÃ¼ltig/g, 'gültig')
+      .replace(/gÃ¼ltigen/g, 'gültigen')
+      .replace(/vollstÃ¤ndig/g, 'vollständig')
+      .replace(/vollstÃ¤ndiges/g, 'vollständiges')
+      .replace(/unberÃ¼hrt/g, 'unberührt')
+      .replace(/rÃ¼ckgÃ¤ngig/g, 'rückgängig')
+      .replace(/rÃ¼cksetzen/g, 'rücksetzen')
       .replace(/gel�st/g, 'gelöst')
       .replace(/vollst�ndig/g, 'vollständig')
       .replace(/r�ckg�ngig/g, 'rückgängig')
@@ -2020,6 +2056,8 @@ const Dashboard = {
       const dataForOriginal = { ...data, quantity: 1 };
       const saved = DB.updateArticle(editId, dataForOriginal);
       if (!saved) return;
+      const returnGroupId = State.articleReturnGroupId;
+      let targetGroupId = saved.groupId || returnGroupId || null;
 
       let dupIds = [];
       if (qty > 1) {
@@ -2031,6 +2069,7 @@ const Dashboard = {
       const allIds = [editId, ...dupIds];
       if (!saved.groupId) {
         const group = await DB.autoAssignGroup(allIds, saved);
+        targetGroupId = group?.id || targetGroupId;
         if (qty > 1) {
           Toast.success('Artikel ' + editId + ' aktualisiert + ' + (qty - 1) + ' Duplikat(e) angelegt Â· Gruppe "' + Utils.escHtml(group.name) + '".');
         } else {
@@ -2050,15 +2089,30 @@ const Dashboard = {
       this.renderStats();
       const savedId = saved.id;
       setTimeout(() => {
-        Router.navigate('inventory');
-        setTimeout(() => {
-          const card = document.querySelector('[data-id="' + CSS.escape(savedId) + '"]');
-          if (card) {
-            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            card.classList.add('highlight-new');
-            setTimeout(() => card.classList.remove('highlight-new'), 1800);
-          }
-        }, 200);
+        if (returnGroupId) {
+          Router.navigate('groups');
+          setTimeout(() => {
+            Groups.openDetail(targetGroupId || returnGroupId);
+            setTimeout(() => {
+              const card = document.querySelector('[data-article-id="' + CSS.escape(savedId) + '"]');
+              if (card) {
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                card.classList.add('highlight-new');
+                setTimeout(() => card.classList.remove('highlight-new'), 1800);
+              }
+            }, 160);
+          }, 80);
+        } else {
+          Router.navigate('inventory');
+          setTimeout(() => {
+            const card = document.querySelector('[data-id="' + CSS.escape(savedId) + '"]');
+            if (card) {
+              card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              card.classList.add('highlight-new');
+              setTimeout(() => card.classList.remove('highlight-new'), 1800);
+            }
+          }, 200);
+        }
       }, 400);
       return;
     }
