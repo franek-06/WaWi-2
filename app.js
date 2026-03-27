@@ -13,9 +13,17 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const _auth           = firebase.auth();
 const _googleProvider = new firebase.auth.GoogleAuthProvider();
-const PUBLIC_QR_CONFIG = {
-  baseUrl: 'https://qr.deine-domain.de/a/',
-};
+const PUBLIC_QR_CONFIG = (() => {
+  const cleanOrigin = String(window.location.origin ?? '').trim().replace(/\/+$/, '');
+  const isUsableCurrentOrigin =
+    /^https?:\/\//i.test(cleanOrigin) &&
+    !/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(cleanOrigin) &&
+    cleanOrigin !== 'null';
+  const fallbackOrigin = `https://${firebaseConfig.authDomain}`.replace(/\/+$/, '');
+  return {
+    baseUrl: `${isUsableCurrentOrigin ? cleanOrigin : fallbackOrigin}/a/`,
+  };
+})();
 const INITIAL_PUBLIC_QR_ROUTE = (() => {
   try {
     const base = new URL(PUBLIC_QR_CONFIG.baseUrl);
@@ -1234,7 +1242,9 @@ const QRManager = {
   hasConfiguredPublicBaseUrl() {
     try {
       const base = new URL(PUBLIC_QR_CONFIG.baseUrl);
-      return !/deine-domain\.de$/i.test(base.hostname);
+      return /^https?:$/i.test(base.protocol)
+        && !/deine-domain\.de$/i.test(base.hostname)
+        && !/^(localhost|127\.0\.0\.1)$/i.test(base.hostname);
     } catch (_) {
       return false;
     }
