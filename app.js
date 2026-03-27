@@ -13,6 +13,19 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const _auth           = firebase.auth();
 const _googleProvider = new firebase.auth.GoogleAuthProvider();
+const PUBLIC_QR_CONFIG = {
+  baseUrl: 'https://qr.deine-domain.de/a/',
+};
+const INITIAL_PUBLIC_QR_ROUTE = (() => {
+  try {
+    const base = new URL(PUBLIC_QR_CONFIG.baseUrl);
+    const basePath = base.pathname.endsWith('/') ? base.pathname : `${base.pathname}/`;
+    return window.location.origin === base.origin
+      && window.location.pathname.startsWith(basePath);
+  } catch (_) {
+    return false;
+  }
+})();
 
 /* ============================================================
  1. WAWIDB â€” Datenbankschicht (Firestore)
@@ -115,6 +128,14 @@ class WawiDB {
       String(article.listingLink ?? '').trim() === normalizedLink
     ) ?? null;
   }
+  getArticleByPublicQrToken(token, excludeArticleId = null) {
+    const normalizedToken = PublicQr.normalizeToken(token);
+    if (!normalizedToken) return null;
+    return this._articles.find(article =>
+      article.id !== excludeArticleId &&
+      PublicQr.normalizeToken(article.publicQrToken) === normalizedToken
+    ) ?? null;
+  }
   getArticlesByGroup(gid) { return this._articles.filter(a => a.groupId === gid); }
 
   _maxNumericId(items, prefix) {
@@ -151,9 +172,11 @@ class WawiDB {
       this._maxNumericId(this._articles, 'A-')
     );
     const now     = Date.now();
+    const publicQrToken = this._ensurePublicQrToken(data);
     const article = {
       ...data,
       id,
+      publicQrToken,
       createdAt: now,
       updatedAt: now,
     };
@@ -171,11 +194,15 @@ class WawiDB {
     );
     const now   = Date.now();
     const saved = [];
+    const reservedTokens = this._collectPublicQrTokens();
     for (let i = 0; i < quantity; i++) {
+      const publicQrToken = PublicQr.createToken(reservedTokens);
+      reservedTokens.add(publicQrToken);
       const article = {
         ...data,
         quantity : 1,
         id       : ids[i],
+        publicQrToken,
         createdAt: now,
         updatedAt: now,
       };
@@ -189,7 +216,16 @@ class WawiDB {
   updateArticle(id, data) {
     const idx = this._articles.findIndex(a => a.id === id);
     if (idx === -1) return null;
-    this._articles[idx] = { ...this._articles[idx], ...data, updatedAt: Date.now() };
+    const publicQrToken = this._ensurePublicQrToken(
+      { ...this._articles[idx], ...data },
+      id
+    );
+    this._articles[idx] = {
+      ...this._articles[idx],
+      ...data,
+      publicQrToken,
+      updatedAt: Date.now(),
+    };
     this._fsSet('articles', id, this._articles[idx]);
     return this._articles[idx];
   }
@@ -235,10 +271,20 @@ class WawiDB {
     const now      = Date.now();
     const existing = this._articles.findIndex(a => a.id === id);
     if (existing !== -1) {
-      this._articles[existing] = { ...this._articles[existing], ...data, updatedAt: now };
+      const publicQrToken = this._ensurePublicQrToken(
+        { ...this._articles[existing], ...data },
+        id
+      );
+      this._articles[existing] = {
+        ...this._articles[existing],
+        ...data,
+        publicQrToken,
+        updatedAt: now,
+      };
       this._fsSet('articles', id, this._articles[existing]);
     } else {
-      const article = { ...data, id, createdAt: now, updatedAt: now };
+      const publicQrToken = this._ensurePublicQrToken(data);
+      const article = { ...data, id, publicQrToken, createdAt: now, updatedAt: now };
       this._articles.push(article);
       this._fsSet('articles', id, article);
     }
@@ -404,9 +450,48 @@ class WawiDB {
     }
     return { assigned, groupsCreated, groupsReused };
   }
+
+  _collectPublicQrTokens(excludeArticleId = null) {
+    const tokens = new Set();
+    this._articles.forEach(article => {
+      if (article.id === excludeArticleId) return;
+      const token = PublicQr.normalizeToken(article.publicQrToken);
+      if (token) tokens.add(token);
+    });
+    return tokens;
+  }
+
+  _ensurePublicQrToken(data, excludeArticleId = null) {
+    const existingTokens = this._collectPublicQrTokens(excludeArticleId);
+    const requestedToken = PublicQr.normalizeToken(data?.publicQrToken);
+    if (requestedToken) {
+      if (existingTokens.has(requestedToken)) {
+        throw new Error(`Der öffentliche QR-Token ${requestedToken} ist bereits vergeben.`);
+      }
+      return requestedToken;
+    }
+    return PublicQr.createToken(existingTokens);
+  }
+
+  ensurePublicQrTokens() {
+    const seenTokens = new Set();
+    const updates = [];
+    this._articles.forEach(article => {
+      const normalizedToken = PublicQr.normalizeToken(article.publicQrToken);
+      const nextToken = normalizedToken && !seenTokens.has(normalizedToken)
+        ? normalizedToken
+        : PublicQr.createToken(seenTokens);
+      seenTokens.add(nextToken);
+      if (String(article.publicQrToken ?? '').trim() !== nextToken) {
+        updates.push({ id: article.id, data: { publicQrToken: nextToken } });
+      }
+    });
+    if (updates.length) this.updateArticlesBulk(updates);
+    return updates.length;
+  }
 }
 
-const DB = new WawiDB();
+const DB = INITIAL_PUBLIC_QR_ROUTE ? null : new WawiDB();
 
 /* ============================================================
    2. GLOBALER STATE
@@ -1002,6 +1087,93 @@ const Sidebar = {
 };
 
 /* ============================================================
+   8. PUBLIC QR
+============================================================ */
+const PublicQr = {
+  TOKEN_LENGTH: 8,
+  TOKEN_ALPHABET: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+
+  getBaseUrl() {
+    return PUBLIC_QR_CONFIG.baseUrl.endsWith('/')
+      ? PUBLIC_QR_CONFIG.baseUrl
+      : `${PUBLIC_QR_CONFIG.baseUrl}/`;
+  },
+
+  getBase() {
+    return new URL(this.getBaseUrl());
+  },
+
+  getBasePath() {
+    const basePath = this.getBase().pathname;
+    return basePath.endsWith('/') ? basePath : `${basePath}/`;
+  },
+
+  normalizeToken(rawValue) {
+    const value = String(rawValue ?? '').trim().toUpperCase();
+    return /^[A-Z0-9]+$/.test(value) ? value : '';
+  },
+
+  createToken(existingTokens = new Set()) {
+    let token = '';
+    do {
+      token = this._randomToken();
+    } while (!token || existingTokens.has(token));
+    return token;
+  },
+
+  _randomToken() {
+    const chars = [];
+    const values = new Uint32Array(this.TOKEN_LENGTH);
+    if (window.crypto?.getRandomValues) {
+      window.crypto.getRandomValues(values);
+    } else {
+      for (let i = 0; i < values.length; i++) {
+        values[i] = Math.floor(Math.random() * 0xffffffff);
+      }
+    }
+    for (let i = 0; i < values.length; i++) {
+      chars.push(this.TOKEN_ALPHABET[values[i] % this.TOKEN_ALPHABET.length]);
+    }
+    return chars.join('');
+  },
+
+  buildUrl(token) {
+    const normalizedToken = this.normalizeToken(token);
+    return normalizedToken ? `${this.getBaseUrl()}${normalizedToken}` : '';
+  },
+
+  getArticleToken(article) {
+    return this.normalizeToken(article?.publicQrToken);
+  },
+
+  getArticleUrl(article) {
+    return this.buildUrl(this.getArticleToken(article));
+  },
+
+  parseUrl(rawValue) {
+    const value = String(rawValue ?? '').trim();
+    if (!value) return null;
+    try {
+      const url = new URL(value);
+      const base = this.getBase();
+      const basePath = this.getBasePath();
+      if (url.origin !== base.origin || !url.pathname.startsWith(basePath)) return null;
+      const restPath = url.pathname.slice(basePath.length).replace(/^\/+/, '');
+      const rawToken = restPath.split('/')[0] ?? '';
+      const token = this.normalizeToken(rawToken);
+      if (!token) return null;
+      return { token, url: url.toString() };
+    } catch (_) {
+      return null;
+    }
+  },
+
+  getCurrentRouteToken() {
+    return this.parseUrl(window.location.href)?.token ?? '';
+  },
+};
+
+/* ============================================================
    8. QR MANAGER
 ============================================================ */
 const QRManager = {
@@ -1034,6 +1206,10 @@ const QRManager = {
     if (!raw.startsWith(this.LOCATION_PREFIX)) return null;
     const location = raw.slice(this.LOCATION_PREFIX.length).trim();
     return location || null;
+  },
+
+  getArticleQrText(article) {
+    return PublicQr.getArticleUrl(article);
   },
 
   _openPrintWindow({ title, label, qrText, subtitle = '' }) {
@@ -1083,10 +1259,15 @@ const QRManager = {
   printQR(articleId) {
     const a = DB.getArticleById(articleId);
     if (!a) return;
+    const qrText = this.getArticleQrText(a);
+    if (!qrText) {
+      Toast.error('Für diesen Artikel ist noch keine öffentliche QR-URL verfügbar.');
+      return;
+    }
     this._openPrintWindow({
       title   : `QR ${a.id}`,
       label   : a.id,
-      qrText  : a.id,
+      qrText,
       subtitle: Utils.articleDisplayName(a, ''),
     });
   },
@@ -1122,13 +1303,34 @@ const ScanResolver = {
       return { type: 'article-internal', value, article: internalArticle };
     }
 
-    if (this.isLikelyListingCode(value)) {
-      return { type: 'unknown', value, reason: 'listing' };
-    }
-
     const externalArticle = DB.getArticleByExternalQrCode(value);
     if (externalArticle) {
       return { type: 'article-external', value, article: externalArticle };
+    }
+
+    const publicQrUrl = PublicQr.parseUrl(value);
+    if (publicQrUrl) {
+      const publicArticle = DB.getArticleByPublicQrToken(publicQrUrl.token);
+      if (publicArticle) {
+        return {
+          type: 'article-public-url',
+          value,
+          article: publicArticle,
+          publicQrToken: publicQrUrl.token,
+          publicQrUrl: publicQrUrl.url,
+        };
+      }
+      return {
+        type: 'unknown',
+        value,
+        reason: 'public-url-not-found',
+        publicQrToken: publicQrUrl.token,
+        publicQrUrl: publicQrUrl.url,
+      };
+    }
+
+    if (this.isLikelyListingCode(value)) {
+      return { type: 'unknown', value, reason: 'listing' };
     }
 
     return { type: 'unknown', value };
@@ -1137,6 +1339,7 @@ const ScanResolver = {
   isLikelyListingCode(rawValue, excludeArticleId = null) {
     const value = String(rawValue ?? '').trim();
     if (!value) return false;
+    if (PublicQr.parseUrl(value)) return false;
     const lowerValue = value.toLowerCase();
     if (
       lowerValue.includes('kleinanzeigen.de') ||
@@ -1153,6 +1356,35 @@ const ScanResolver = {
     return `${article.id} (${name})`;
   },
 
+  articleSourceLabel(type) {
+    return ({
+      'article-internal' : 'Erkannt über interne Artikel-ID',
+      'article-external' : 'Erkannt über Fremd-QR-Code',
+      'article-public-url': 'Erkannt über öffentlichen 2-in-1-QR-Code',
+    })[type] ?? 'Artikel erkannt';
+  },
+
+  unknownMessage(rawValue, resolution = null, context = 'default') {
+    const value = String(rawValue ?? '').trim();
+    const resolved = resolution ?? this.resolve(value);
+    if (resolved.reason === 'public-url-not-found') {
+      return `Öffentliche QR-URL erkannt, aber kein Artikel mit Token ${resolved.publicQrToken} gefunden.`;
+    }
+    if (resolved.reason === 'listing') {
+      if (context === 'relocate') {
+        return 'Kleinanzeigen-QR-Codes sind hier kein gültiger Artikel- oder Standort-Scan.';
+      }
+      if (context === 'scanner') {
+        return 'Kleinanzeigen-QR-Codes werden im Scanner nicht als Artikel erkannt.';
+      }
+      return 'Kleinanzeigen-QR-Codes werden nicht als Artikelkennung verwendet.';
+    }
+    if (context === 'relocate') {
+      return 'Code „' + value + '" ist weder ein Artikel noch ein Standort-QR.';
+    }
+    return 'Code „' + value + '" wurde nicht erkannt.';
+  },
+
   validateExternalQrCode(rawValue, currentArticleId = null) {
     const value = String(rawValue ?? '').trim();
     if (!value) return { ok: true, value: '' };
@@ -1160,6 +1392,13 @@ const ScanResolver = {
     const currentArticle = currentArticleId ? DB.getArticleById(currentArticleId) : null;
     if (currentArticle && String(currentArticle.externalQrCode ?? '').trim() === value) {
       return { ok: true, value };
+    }
+
+    if (PublicQr.parseUrl(value)) {
+      return {
+        ok: false,
+        message: 'Öffentliche 2-in-1-QR-URLs können nicht als Fremd-QR-Code gespeichert werden.',
+      };
     }
 
     const resolution = this.resolve(value);
@@ -1174,6 +1413,13 @@ const ScanResolver = {
       return {
         ok: false,
         message: 'Interne MöbelWawi-Codes können nicht als Fremd-QR-Code gespeichert werden.',
+      };
+    }
+
+    if (resolution.type === 'article-public-url') {
+      return {
+        ok: false,
+        message: 'Öffentliche 2-in-1-QR-URLs können nicht als Fremd-QR-Code gespeichert werden.',
       };
     }
 
@@ -1518,6 +1764,14 @@ const Dashboard = {
     return true;
   },
 
+  syncPublicQrFields(article = null) {
+    const tokenEl = document.getElementById('art-public-qr-token');
+    const urlEl   = document.getElementById('art-public-qr-url');
+    if (!tokenEl || !urlEl) return;
+    tokenEl.value = article ? PublicQr.getArticleToken(article) : '';
+    urlEl.value   = article ? PublicQr.getArticleUrl(article)   : '';
+  },
+
   async saveArticle() {
     if (!this.validateArticle()) return;
     try {
@@ -1556,6 +1810,7 @@ const Dashboard = {
       purchasePriceGross: parseFloat(document.getElementById('art-purchase-price-gross').value) || null,
       originalPrice : parseFloat(document.getElementById('art-original-price').value)       || null,
       originalPriceGross: parseFloat(document.getElementById('art-original-price-gross').value) || null,
+      publicQrToken : document.getElementById('art-public-qr-token').value.trim() || null,
       listingLink   : document.getElementById('art-listing-link').value.trim(),
       pickupZip     : document.getElementById('art-pickup-zip').value.trim(),
       shipping      : document.getElementById('art-shipping').checked,
@@ -1600,7 +1855,8 @@ const Dashboard = {
       document.getElementById('art-id-display').value         = saved.id;
       document.getElementById('art-qr-section').style.display = 'block';
       State.editingArticleId = saved.id;
-      QRManager.generate('art-qr-preview', saved.id, 128);
+      this.syncPublicQrFields(saved);
+      QRManager.generate('art-qr-preview', PublicQr.getArticleUrl(saved), 128);
       this.renderStats();
       const savedId = saved.id;
       setTimeout(() => {
@@ -1623,10 +1879,12 @@ const Dashboard = {
     const articleIds = savedArticles.map(a => a.id);
     const group      = await DB.autoAssignGroup(articleIds, data);
     const firstId    = articleIds[0];
+    const firstArticle = savedArticles[0] ?? DB.getArticleById(firstId);
     document.getElementById('art-id-display').value         = firstId;
     document.getElementById('art-qr-section').style.display = 'block';
     State.editingArticleId = firstId;
-    QRManager.generate('art-qr-preview', firstId, 128);
+    this.syncPublicQrFields(firstArticle);
+    QRManager.generate('art-qr-preview', PublicQr.getArticleUrl(firstArticle), 128);
     document.getElementById('qty-hint-banner')?.remove();
     if (qty > 1) {
       Toast.success(qty + ' Artikel angelegt (' + articleIds[0] + '-' + articleIds[articleIds.length - 1] + ') Â· Gruppe "' + Utils.escHtml(group.name) + '".');
@@ -1636,7 +1894,7 @@ const Dashboard = {
     this.renderStats();
     } catch (err) {
       console.error('saveArticle failed:', err);
-      Toast.error('Speichern fehlgeschlagen. Bitte erneut versuchen.');
+      Toast.error(err?.message || 'Speichern fehlgeschlagen. Bitte erneut versuchen.');
     }
   },
 
@@ -1652,6 +1910,7 @@ const Dashboard = {
     document.querySelectorAll('.condition-btn')
       .forEach(l => l.classList.remove('selected'));
     document.getElementById('qty-hint-banner')?.remove();
+    this.syncPublicQrFields(null);
     State.editingArticleId = null;
     State.articlePhotos    = [];
   },
@@ -1724,7 +1983,8 @@ const Dashboard = {
     );
 
     document.getElementById('art-qr-section').style.display = 'block';
-    QRManager.generate('art-qr-preview', a.id, 128);
+    this.syncPublicQrFields(a);
+    QRManager.generate('art-qr-preview', PublicQr.getArticleUrl(a), 128);
 
     Router.navigate('dashboard');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -3831,6 +4091,7 @@ const Groups = {
     delete duplicateData.id;
     delete duplicateData.createdAt;
     delete duplicateData.updatedAt;
+    delete duplicateData.publicQrToken;
 
     const duplicateArticle = await DB.saveArticle(duplicateData);
     return { duplicateArticle, templateArticle };
@@ -4487,7 +4748,7 @@ const Tools = {
     'ID', 'Status', 'Kategorie', 'Hersteller', 'Modell', 'Zustand',
     'Standort', 'StÃ¼ckzahl', 'Breite_cm', 'Tiefe_cm', 'HÃ¶he_cm',
     'Einkaufspreis_EUR', 'Originalpreis_EUR', 'Material', 'Stil',
-    'Versand', 'Versandkosten_EUR', 'Abhol_PLZ', 'Inserat_Link',
+    'Versand', 'Versandkosten_EUR', 'Abhol_PLZ', 'Inserat_Link', 'Public_QR_Token',
     'Gruppe_ID', 'Verkaufspreis_EUR', 'Verkaufsdatum',
     'Bemerkungen', 'Erstellt', 'Aktualisiert',
   ],
@@ -4517,6 +4778,7 @@ const Tools = {
     shippingCost      : ['versandkosten', 'versandkosten_eur', 'lieferkosten', 'lieferungskosten'],
     pickupZip         : ['abholplz', 'abhol_plz', 'abholungplz', 'plz', 'postleitzahl'],
     listingLink       : ['inseratlink', 'inserat_link', 'listinglink', 'link', 'url', 'produkturl', 'artikelurl'],
+    publicQrToken     : ['publicqrtoken', 'public_qr_token', 'oeffentlicherqrtoken', 'oeffentlicher_qr_token'],
     groupId           : ['gruppeid', 'gruppe_id', 'gruppenid'],
     soldPrice         : ['verkaufspreis', 'verkaufspreis_eur', 'verkaufspreisnetto', 'verkaufspreis_netto', 'vk', 'vknetto', 'verkaufnetto'],
     soldPriceGross    : ['verkaufspreisbrutto', 'verkaufspreis_brutto', 'vkbrutto', 'verkaufbrutto'],
@@ -4744,7 +5006,7 @@ const Tools = {
       a.location, a.quantity, a.width, a.depth, a.height,
       a.purchasePrice, a.originalPrice, a.material, a.style,
       a.shipping ? 'Ja' : 'Nein', a.shippingCost,
-      a.pickupZip, a.listingLink, a.groupId || '',
+      a.pickupZip, a.listingLink, a.publicQrToken || '', a.groupId || '',
       a.soldPrice, a.soldDate, a.notes,
       Utils.formatDateTime(a.createdAt),
       Utils.formatDateTime(a.updatedAt),
@@ -5043,6 +5305,7 @@ const Tools = {
       shippingCost,
       pickupZip         : this._cleanText(this._readField(row, headerIndex, 'pickupZip')),
       listingLink       : this._cleanText(this._readField(row, headerIndex, 'listingLink')),
+      publicQrToken     : this._cleanText(this._readField(row, headerIndex, 'publicQrToken')),
       groupId           : this._cleanText(this._readField(row, headerIndex, 'groupId')) || null,
       soldPrice,
       soldPriceGross    : soldPriceGrossRaw ?? this._grossFromNet(soldPrice),
@@ -5077,6 +5340,7 @@ const Tools = {
       this._readField(row, headerIndex, 'shippingCost'),
       this._readField(row, headerIndex, 'pickupZip'),
       this._readField(row, headerIndex, 'listingLink'),
+      this._readField(row, headerIndex, 'publicQrToken'),
       this._readField(row, headerIndex, 'groupId'),
       this._readField(row, headerIndex, 'soldPrice'),
       this._readField(row, headerIndex, 'soldPriceGross'),
@@ -5342,11 +5606,7 @@ const Tools = {
       return;
     }
     if (resolved.type === 'unknown') {
-      Toast.error(
-        ScanResolver.isLikelyListingCode(rawValue)
-          ? 'Kleinanzeigen-QR-Codes werden nicht als Artikelkennung verwendet.'
-          : `Code â€ž${Utils.escHtml(rawValue)}" wurde nicht erkannt.`
-      );
+      Toast.error(ScanResolver.unknownMessage(rawValue, resolved, 'tools'));
       input.value = ''; input.focus();
       return;
     }
@@ -5366,7 +5626,7 @@ const Tools = {
         <div>
           <div style="font-weight:700;">${Utils.escHtml(Utils.articleDisplayName(article, article.id))}</div>
           <div style="margin-top:4px;font-size:var(--font-size-xs);color:var(--color-muted);">
-            ${resolved.type === 'article-external' ? 'Erkannt Ã¼ber Fremd-QR-Code' : 'Erkannt Ã¼ber interne Artikel-ID'}
+            ${ScanResolver.articleSourceLabel(resolved.type)}
           </div>
           <div style="margin-top:4px;">${Utils.statusBadge(article.status)}</div>
           ${article.groupId
@@ -5767,11 +6027,7 @@ const QRScanner = {
       return;
     }
     if (resolved.type === 'unknown') {
-      Toast.error(
-        ScanResolver.isLikelyListingCode(value)
-          ? 'Kleinanzeigen-QR-Codes werden im Scanner nicht als Artikel erkannt.'
-          : 'Code â€ž' + Utils.escHtml(value) + '" wurde nicht erkannt.'
-      );
+      Toast.error(ScanResolver.unknownMessage(value, resolved, 'scanner'));
       try { this._scanner.resume(); } catch (_) {}
       this._setBadge('scanning');
       return;
@@ -5795,7 +6051,11 @@ const QRScanner = {
         this._setRelocationAwaitingLocationScan(false);
         Toast.success(`Ziel-Standort erkannt: ${resolved.location}`);
       }
-    } else if (resolved.type === 'article-internal' || resolved.type === 'article-external') {
+    } else if (
+      resolved.type === 'article-internal'
+      || resolved.type === 'article-external'
+      || resolved.type === 'article-public-url'
+    ) {
       const article = resolved.article;
       if (this._relocateAwaitingLocationScan) {
         Toast.warning('Standort-Scan ist aktiv. Bitte jetzt den Standort scannen.');
@@ -5806,11 +6066,7 @@ const QRScanner = {
         Toast.warning(`${article.id} wurde bereits gescannt.`);
       }
     } else {
-      Toast.error(
-        ScanResolver.isLikelyListingCode(value)
-          ? 'Kleinanzeigen-QR-Codes sind hier kein gÃ¼ltiger Artikel- oder Standort-Scan.'
-          : 'Code â€ž' + Utils.escHtml(value) + '" ist weder ein Artikel noch ein Standort-QR.'
-      );
+      Toast.error(ScanResolver.unknownMessage(value, resolved, 'relocate'));
     }
 
     this._setBadge('found');
@@ -5952,6 +6208,102 @@ const QRScanner = {
 };
 
 /* ============================================================
+   16. PUBLIC QR ROUTER
+============================================================ */
+const PublicQrRouter = {
+  isPublicRoute() {
+    return INITIAL_PUBLIC_QR_ROUTE;
+  },
+
+  setScreenState(title, message, linkHref = '') {
+    const screen = document.getElementById('public-qr-screen');
+    const titleEl = document.getElementById('public-qr-title');
+    const messageEl = document.getElementById('public-qr-message');
+    const linkEl = document.getElementById('public-qr-link');
+    if (!screen || !titleEl || !messageEl || !linkEl) return;
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    if (linkHref) {
+      linkEl.href = linkHref;
+      linkEl.classList.remove('hidden');
+    } else {
+      linkEl.href = '#';
+      linkEl.classList.add('hidden');
+    }
+  },
+
+  normalizeRedirectUrl(rawValue) {
+    const value = String(rawValue ?? '').trim();
+    if (!value) return '';
+    try {
+      const url = new URL(value);
+      return /^https?:$/i.test(url.protocol) ? url.toString() : '';
+    } catch (_) {
+      return '';
+    }
+  },
+
+  async init() {
+    document.getElementById('login-screen')?.classList.add('hidden');
+    document.getElementById('app')?.classList.add('hidden');
+    document.getElementById('public-qr-screen')?.classList.remove('hidden');
+
+    const token = PublicQr.getCurrentRouteToken();
+    if (!token) {
+      this.setScreenState(
+        'Ungültiger QR-Code',
+        'Dieser öffentliche QR-Code ist unvollständig oder nicht mehr gültig.'
+      );
+      return;
+    }
+
+    this.setScreenState(
+      'Weiterleitung läuft',
+      'Die passende Kleinanzeige wird geöffnet. Falls nichts passiert, nutze den Button unten.'
+    );
+
+    try {
+      const snap = await firebase.firestore()
+        .collection('articles')
+        .where('publicQrToken', '==', token)
+        .limit(1)
+        .get();
+
+      if (snap.empty) {
+        this.setScreenState(
+          'QR-Code nicht gefunden',
+          'Zu diesem öffentlichen QR-Code wurde kein Artikel gefunden.'
+        );
+        return;
+      }
+
+      const article = snap.docs[0].data() ?? {};
+      const redirectUrl = this.normalizeRedirectUrl(article.listingLink);
+      if (!redirectUrl) {
+        this.setScreenState(
+          'Kein öffentlicher Link hinterlegt',
+          'Für diesen Artikel ist derzeit kein öffentlicher Link hinterlegt.'
+        );
+        return;
+      }
+
+      this.setScreenState(
+        'Weiterleitung läuft',
+        'Die passende Kleinanzeige wird geöffnet. Falls nichts passiert, nutze den Button unten.',
+        redirectUrl
+      );
+      window.location.replace(redirectUrl);
+    } catch (err) {
+      console.error('PublicQrRouter.init failed:', err);
+      this.setScreenState(
+        'Weiterleitung derzeit nicht verfügbar',
+        'Die öffentliche Weiterleitung konnte im Moment nicht geladen werden. Bitte später erneut versuchen.'
+      );
+    }
+  },
+};
+
+/* ============================================================
    16. APP â€” Initialisierung
 ============================================================ */
 const App = {
@@ -6007,6 +6359,7 @@ const App = {
 
   async init() {
     await DB._ready;
+    DB.ensurePublicQrTokens();
     Utils.observeVisibleTextRepair();
     Modal.init();
     Sidebar.init();
@@ -6083,6 +6436,11 @@ const App = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+  if (PublicQrRouter.isPublicRoute()) {
+    PublicQrRouter.init();
+    return;
+  }
+
   let appInitialized = false;
   Utils.observeVisibleTextRepair();
 
