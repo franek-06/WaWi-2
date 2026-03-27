@@ -2112,6 +2112,7 @@ const Dashboard = {
       status           : document.getElementById('grp-status').value,
       quantity         : parseInt(document.getElementById('grp-quantity').value) || 1,
       location         : document.getElementById('grp-location').value.trim(),
+      listingLink      : document.getElementById('grp-listing-link').value.trim(),
       priceNet,
       priceGross       : parseFloat(document.getElementById('grp-price-gross').value) || null,
       soldPrice        : parseFloat(document.getElementById('grp-sold-price').value)  || null,
@@ -2144,6 +2145,7 @@ const Dashboard = {
     document.getElementById('group-form').reset();
     document.getElementById('grp-id-display').value        = '';
     document.getElementById('grp-name').value              = '';
+    document.getElementById('grp-listing-link').value      = '';
     document.getElementById('grp-image-preview').innerHTML = '';
     document.getElementById('sold-fields-group').style.display = 'none';
     State.editingGroupId   = null;
@@ -4466,6 +4468,7 @@ const Groups = {
     const articles = DB.getArticlesByGroup(group.id);
     const displayName = Utils.groupDisplayName(group, articles);
     const totalQty = articles.reduce((s, a) => s + (parseInt(a.quantity) || 1), 0);
+    const groupListingLink = String(group.listingLink ?? '').trim();
     const imgHtml  = group.image
       ? `<div class="group-info-image"><img src="${group.image}" alt="Gruppenbild"/></div>`
       : `<div class="group-info-image"><div class="group-info-image-placeholder"><i class="fa-solid fa-layer-group"></i></div></div>`;
@@ -4477,6 +4480,9 @@ const Groups = {
       ['Zielpreis Brutto', `<span style="color:var(--color-primary);font-size:var(--font-size-lg);font-weight:700;">${Utils.formatEuro(group.priceGross)}</span>`],
       ...(group.soldPrice ? [['Erzielt', `<span style="color:var(--color-success);">${Utils.formatEuro(group.soldPrice)}</span>`]] : []),
       ['Standort',     Utils.escHtml(group.location || '-')],
+      ['Kleinanzeigen', groupListingLink
+        ? `<a href="${Utils.escHtml(groupListingLink)}" target="_blank" rel="noopener" style="color:var(--color-primary);word-break:break-all;">Link öffnen</a>`
+        : '-'],
       ['St\u00fcck gesamt', `<strong>${totalQty}</strong>`],
       ['Datens\u00e4tze',   `${articles.length} Artikel`],
       ['Aktualisiert', Utils.formatDate(group.updatedAt)],
@@ -4505,12 +4511,20 @@ const Groups = {
         <button class="btn btn-outline btn-sm" style="width:100%;" id="detail-apply-group-image-btn">
           <i class="fa-solid fa-images"></i> Gruppenbild f\u00fcr alle Artikel \u00fcbernehmen
         </button>
+      </div>` : ''}
+      ${groupListingLink ? `
+      <div class="group-info-actions" style="padding-top:0;">
+        <button class="btn btn-outline btn-sm" style="width:100%;" id="detail-apply-group-listing-link-btn">
+          <i class="fa-solid fa-link"></i> Kleinanzeigen-Link für alle Artikel übernehmen
+        </button>
       </div>` : ''}`;
     document.getElementById('detail-price-history-btn').addEventListener('click', () => Dashboard.showPriceHistoryModal(group));
     document.getElementById('detail-edit-group-btn').addEventListener('click', () => this._editGroup(group.id));
     document.getElementById('detail-delete-group-btn').addEventListener('click', () => this._confirmDeleteGroup(group.id));
     const applyImgBtn = document.getElementById('detail-apply-group-image-btn');
     if (applyImgBtn) { applyImgBtn.addEventListener('click', () => this._applyGroupImageToArticles(group.id)); }
+    const applyListingBtn = document.getElementById('detail-apply-group-listing-link-btn');
+    if (applyListingBtn) { applyListingBtn.addEventListener('click', () => this._applyGroupListingLinkToArticles(group.id)); }
   },
 
   _renderGroupArticles(groupId) {
@@ -4708,6 +4722,25 @@ const Groups = {
     else                                     Toast.success('Gruppenbild bei ' + updated + ' Artikel(n) als erstes Bild gesetzt.');
   },
 
+  _applyGroupListingLinkToArticles(groupId) {
+    const group = DB.getGroupById(groupId);
+    const listingLink = String(group?.listingLink ?? '').trim();
+    if (!group || !listingLink) {
+      Toast.warning('Kein Kleinanzeigen-Link in der Gruppe hinterlegt.');
+      return;
+    }
+    const articles = DB.getArticlesByGroup(groupId);
+    if (!articles.length) {
+      Toast.warning('Keine Artikel in dieser Gruppe.');
+      return;
+    }
+    DB.updateArticles(articles.map(article => article.id), { listingLink });
+    this._renderGroupArticles(groupId);
+    this._renderGroupInfoCard(DB.getGroupById(groupId));
+    Dashboard.renderStats();
+    Toast.success('Kleinanzeigen-Link bei ' + articles.length + ' Artikel(n) übernommen.');
+  },
+
   _editGroup(groupId) {
     const group = DB.getGroupById(groupId);
     if (!group) return;
@@ -4725,6 +4758,7 @@ const Groups = {
     document.getElementById('grp-price-net').value          = group.priceNet    || '';
     document.getElementById('grp-price-gross').value        = group.priceGross  || '';
     document.getElementById('grp-condition-overview').value = group.conditionOverview || '';
+    document.getElementById('grp-listing-link').value       = group.listingLink || '';
     document.getElementById('grp-notes').value              = group.notes       || '';
     if (group.status === 'Verkauft') {
       document.getElementById('sold-fields-group').style.display = 'block';
