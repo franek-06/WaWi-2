@@ -1646,6 +1646,9 @@ const Dashboard = {
     document.getElementById('btn-reset-article')
       .addEventListener('click', () => this.resetArticleForm());
 
+    document.getElementById('btn-apply-article-listing-to-group')
+      .addEventListener('click', () => this.applyArticleListingLinkToGroup());
+
     document.getElementById('btn-print-qr')
       .addEventListener('click', () => {
         if (State.editingArticleId) QRManager.printQR(State.editingArticleId);
@@ -1807,6 +1810,44 @@ const Dashboard = {
     if (!tokenEl || !urlEl) return;
     tokenEl.value = article ? PublicQr.getArticleToken(article) : '';
     urlEl.value   = article ? QRManager.getArticleQrText(article) : '';
+  },
+
+  applyArticleListingLinkToGroup() {
+    const listingInput = document.getElementById('art-listing-link');
+    const listingLink  = listingInput.value.trim();
+    if (!listingLink) {
+      Toast.warning('Bitte zuerst einen Kleinanzeigen-Link eingeben.');
+      listingInput.focus();
+      return;
+    }
+
+    const groupSelect = document.getElementById('art-group-assign');
+    const groupId = groupSelect.value
+      || document.getElementById('article-edit-group-id').value
+      || DB.getArticleById(State.editingArticleId)?.groupId
+      || null;
+
+    if (!groupId) {
+      Toast.warning('Bitte zuerst eine Gruppe auswählen oder einen Gruppenartikel öffnen.');
+      groupSelect.focus();
+      return;
+    }
+
+    const group = DB.getGroupById(groupId);
+    if (!group) {
+      Toast.error('Gruppe wurde nicht gefunden.');
+      return;
+    }
+
+    const articles = DB.getArticlesByGroup(groupId);
+    if (!articles.length) {
+      Toast.warning('Keine Artikel in dieser Gruppe.');
+      return;
+    }
+
+    DB.updateGroup(groupId, { listingLink });
+    DB.updateArticles(articles.map(article => article.id), { listingLink });
+    Toast.success('Kleinanzeigen-Link bei ' + articles.length + ' Artikel(n) der Gruppe übernommen.');
   },
 
   async saveArticle() {
