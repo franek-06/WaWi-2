@@ -648,8 +648,27 @@ const Utils = {
 
   repairVisibleString(value) {
     const input = String(value ?? '');
-    if (!/[ÃÂâð�]/.test(input)) return input;
+    if (!/[ÃÂâð�]/.test(input) &&
+        !/\b(?:oeffnen|Oeffnen|naechst\w*|rueckg\w*|Rueckg\w*|dafuer|Dafuer|fuer|Fuer|moeglich|Moeglich)\b/.test(input)) {
+      return input;
+    }
     let repaired = input
+      .replace(/\bOeffnen\b/g, 'Öffnen')
+      .replace(/\boeffnen\b/g, 'öffnen')
+      .replace(/\bnaechste\b/g, 'nächste')
+      .replace(/\bnaechsten\b/g, 'nächsten')
+      .replace(/\bnaechster\b/g, 'nächster')
+      .replace(/\bnaechstes\b/g, 'nächstes')
+      .replace(/\bNaechste\b/g, 'Nächste')
+      .replace(/\bNaechsten\b/g, 'Nächsten')
+      .replace(/\bRueckgaengig\b/g, 'Rückgängig')
+      .replace(/\brueckgaengig\b/g, 'rückgängig')
+      .replace(/\bDafuer\b/g, 'Dafür')
+      .replace(/\bdafuer\b/g, 'dafür')
+      .replace(/\bMoeglich\b/g, 'Möglich')
+      .replace(/\bmoeglich\b/g, 'möglich')
+      .replace(/\bFuer\b/g, 'Für')
+      .replace(/\bfuer\b/g, 'für')
       .replace(/fÃƒÂ¼r/g, 'für')
       .replace(/spÃƒÂ¤ter/g, 'später')
       .replace(/ÃƒÂ¼bernehmen/g, 'übernehmen')
@@ -705,6 +724,22 @@ const Utils = {
       }
     }
     return repaired
+      .replace(/\bOeffnen\b/g, 'Öffnen')
+      .replace(/\boeffnen\b/g, 'öffnen')
+      .replace(/\bnaechste\b/g, 'nächste')
+      .replace(/\bnaechsten\b/g, 'nächsten')
+      .replace(/\bnaechster\b/g, 'nächster')
+      .replace(/\bnaechstes\b/g, 'nächstes')
+      .replace(/\bNaechste\b/g, 'Nächste')
+      .replace(/\bNaechsten\b/g, 'Nächsten')
+      .replace(/\bRueckgaengig\b/g, 'Rückgängig')
+      .replace(/\brueckgaengig\b/g, 'rückgängig')
+      .replace(/\bDafuer\b/g, 'Dafür')
+      .replace(/\bdafuer\b/g, 'dafür')
+      .replace(/\bMoeglich\b/g, 'Möglich')
+      .replace(/\bmoeglich\b/g, 'möglich')
+      .replace(/\bFuer\b/g, 'Für')
+      .replace(/\bfuer\b/g, 'für')
       .replace(/fÃƒÂ¼r/g, 'für')
       .replace(/spÃƒÂ¤ter/g, 'später')
       .replace(/ÃƒÂ¼bernehmen/g, 'übernehmen')
@@ -821,6 +856,7 @@ const Toast = {
   show(message, type = 'default', duration = 3500) {
     const c = document.getElementById('toast-container');
     const t = document.createElement('div');
+    const repairedMessage = Utils.repairVisibleString(message);
     const icons = {
       success: 'fa-circle-check',
       error  : 'fa-circle-xmark',
@@ -829,7 +865,7 @@ const Toast = {
     };
     t.className = `toast toast-${type}`;
     t.innerHTML = `<i class="fa-solid ${icons[type] ?? icons.default}"></i>
-                   ${Utils.escHtml(message)}`;
+                   ${Utils.escHtml(repairedMessage)}`;
     c.appendChild(t);
     setTimeout(() => {
       t.classList.add('toast-out');
@@ -862,9 +898,10 @@ const Modal = {
   },
 
   open(html, onOpen) {
-    this.content.innerHTML = html;
+    this.content.innerHTML = Utils.repairVisibleString(html);
     this.overlay.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+    Utils.repairVisibleDom(this.content);
     if (typeof onOpen === 'function') onOpen(this.content);
   },
 
@@ -3922,7 +3959,7 @@ const Groups = {
       if (duplicateMeta?.duplicateArticle) {
         const group = DB.getGroupById(this._currentGroupId);
         if (group) this._renderGroupInfoCard(group);
-        Toast.success(`Fremd-QR ${validation.value} wurde ${targetArticle.id} zugeordnet. ${targetArticle.id} wurde dafuer automatisch aus ${duplicateMeta.templateArticle.id} dupliziert.`);
+        Toast.success(`Fremd-QR ${validation.value} wurde ${targetArticle.id} zugeordnet. ${targetArticle.id} wurde dafür automatisch aus ${duplicateMeta.templateArticle.id} dupliziert.`);
       } else {
         Toast.success(`Fremd-QR ${validation.value} wurde ${targetArticle.id} zugeordnet.`);
       }
@@ -3971,8 +4008,8 @@ const Groups = {
 
     Toast.success(
       lastAssignment.createdArticleId && lastAssignment.createdArticleId === lastAssignment.articleId
-        ? `Der letzte Fremd-QR-Scan fuer ${lastAssignment.articleId} wurde rueckgaengig gemacht und das automatische Duplikat entfernt.`
-        : `Der letzte Fremd-QR-Scan fuer ${lastAssignment.articleId} wurde rueckgaengig gemacht.`
+        ? `Der letzte Fremd-QR-Scan für ${lastAssignment.articleId} wurde rückgängig gemacht und das automatische Duplikat entfernt.`
+        : `Der letzte Fremd-QR-Scan für ${lastAssignment.articleId} wurde rückgängig gemacht.`
     );
     this._renderExternalQrPanel(this._currentGroupId);
     this._renderGroupArticles(this._currentGroupId);
@@ -4048,7 +4085,7 @@ const Groups = {
       ? `
         <div class="external-qr-batch__target-empty">
           <i class="fa-solid fa-copy"></i>
-          <span>Alle vorhandenen Artikel haben bereits einen Fremd-QR-Code. Der naechste Scan legt automatisch ein weiteres Duplikat in dieser Gruppe an.</span>
+          <span>Alle vorhandenen Artikel haben bereits einen Fremd-QR-Code. Der nächste Scan legt automatisch ein weiteres Duplikat in dieser Gruppe an.</span>
         </div>`
       : `
         <div class="external-qr-batch__target-empty">
@@ -5893,7 +5930,7 @@ const QRScanner = {
       html += `
         <div class="scanner-context-panel__empty">
           <i class="fa-solid fa-copy"></i>
-          <span>Alle vorhandenen Artikel haben bereits einen Fremd-QR-Code. Der naechste Scan legt automatisch ein weiteres Duplikat in dieser Gruppe an.</span>
+          <span>Alle vorhandenen Artikel haben bereits einen Fremd-QR-Code. Der nächste Scan legt automatisch ein weiteres Duplikat in dieser Gruppe an.</span>
         </div>`;
     } else {
       html += `
@@ -5906,7 +5943,7 @@ const QRScanner = {
     if (this._mode !== 'single') {
       html += `
         <div class="scanner-context-panel__hint">
-          Fuer die Fremd-QR-Serienzuordnung bitte den Modus "Einzel-Scan" aktiv lassen.
+          Für die Fremd-QR-Serienzuordnung bitte den Modus "Einzel-Scan" aktiv lassen.
         </div>`;
     }
 
