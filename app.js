@@ -519,6 +519,7 @@ const State = {
   editingArticleId : null,
   editingGroupId   : null,
   articleReturnGroupId: null,
+  articleGroupSelectionTouched: false,
   articlePhotos    : [],
   groupImageBase64 : null,
   inventoryViewMode: 'grid',
@@ -1700,6 +1701,11 @@ const Dashboard = {
     document.getElementById('art-listing-link')
       .addEventListener('input', () => this.refreshArticleQrPreview());
 
+    document.getElementById('art-group-assign')
+      .addEventListener('change', () => {
+        State.articleGroupSelectionTouched = true;
+      });
+
     document.getElementById('art-external-qr-code')
       .addEventListener('keydown', e => {
         if (e.key === 'Enter') e.preventDefault();
@@ -1957,6 +1963,14 @@ const Dashboard = {
     const condEl = document.querySelector('input[name="art-condition"]:checked');
     const editId = State.editingArticleId;
     const qty    = parseInt(document.getElementById('art-quantity').value) || 1;
+    const selectedGroupId = String(document.getElementById('art-group-assign').value ?? '').trim();
+    const storedEditGroupId = String(document.getElementById('article-edit-group-id').value ?? '').trim();
+    const currentArticleGroupId = editId
+      ? String(DB.getArticleById(editId)?.groupId ?? '').trim()
+      : '';
+    const effectiveGroupId = editId
+      ? (selectedGroupId || currentArticleGroupId || storedEditGroupId || null)
+      : (selectedGroupId || null);
     const externalQrValidation = ScanResolver.validateExternalQrCode(
       document.getElementById('art-external-qr-code').value,
       editId
@@ -1999,9 +2013,7 @@ const Dashboard = {
       soldPrice     : parseFloat(document.getElementById('art-sold-price').value)          || null,
       soldPriceGross: parseFloat(document.getElementById('art-sold-price-gross').value)    || null,
       soldDate      : document.getElementById('art-sold-date').value                  || null,
-      groupId       : document.getElementById('art-group-assign').value
-                      || document.getElementById('article-edit-group-id').value
-                      || null,
+      groupId       : effectiveGroupId,
     };
 
     if (editId) {
@@ -2090,6 +2102,7 @@ const Dashboard = {
     this.syncPublicQrFields(null);
     State.editingArticleId = null;
     State.articleReturnGroupId = null;
+    State.articleGroupSelectionTouched = false;
     State.articlePhotos    = [];
   },
 
@@ -2106,6 +2119,7 @@ const Dashboard = {
     this.populateGroupDropdown(a.groupId ?? '');
     State.editingArticleId = id;
     State.articleReturnGroupId = returnGroupId;
+    State.articleGroupSelectionTouched = false;
 
     document.querySelectorAll('.form-tab').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
