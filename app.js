@@ -15,13 +15,17 @@ const _auth           = firebase.auth();
 const _googleProvider = new firebase.auth.GoogleAuthProvider();
 const PUBLIC_QR_CONFIG = (() => {
   const cleanOrigin = String(window.location.origin ?? '').trim().replace(/\/+$/, '');
+  const cleanPathname = String(window.location.pathname ?? '').trim();
   const isUsableCurrentOrigin =
     /^https?:\/\//i.test(cleanOrigin) &&
     !/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(cleanOrigin) &&
     cleanOrigin !== 'null';
+  const currentAppUrl = isUsableCurrentOrigin
+    ? `${cleanOrigin}${cleanPathname || '/'}`
+    : '';
   const fallbackOrigin = `https://${firebaseConfig.authDomain}`.replace(/\/+$/, '');
   return {
-    baseUrl: `${isUsableCurrentOrigin ? cleanOrigin : fallbackOrigin}/#/a/`,
+    baseUrl: `${isUsableCurrentOrigin ? currentAppUrl : fallbackOrigin}/#/a/`,
   };
 })();
 const INITIAL_PUBLIC_QR_ROUTE = (() => {
