@@ -500,6 +500,7 @@ const State = {
   currentView      : 'dashboard',
   editingArticleId : null,
   editingGroupId   : null,
+  articleReturnGroupId: null,
   articlePhotos    : [],
   groupImageBase64 : null,
   inventoryViewMode: 'grid',
@@ -874,12 +875,13 @@ const Utils = {
 
   repairVisibleDom(root = document.body) {
     if (!root) return;
+    if (this._shouldSkipVisibleRepair(root)) return;
     const textTargets = [];
     if (root.nodeType === Node.TEXT_NODE) {
       textTargets.push(root);
     } else if (root.querySelectorAll) {
       textTargets.push(root);
-      textTargets.push(...root.querySelectorAll('*'));
+      textTargets.push(...Array.from(root.querySelectorAll('*')).filter(node => !this._shouldSkipVisibleRepair(node)));
     }
 
     textTargets.forEach(node => {
@@ -908,18 +910,39 @@ const Utils = {
     document.title = this.repairVisibleString(document.title);
   },
 
+  _shouldSkipVisibleRepair(node) {
+    const element = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+    if (!element || element === document.body || element === document.documentElement) return false;
+    if (!element.closest) return false;
+    return !!element.closest('#art-qr-preview, #location-qr-preview, #qr-reader');
+  },
+
+  queueVisibleDomRepair(node) {
+    if (!node) return;
+    if (this._shouldSkipVisibleRepair(node)) return;
+    if (!this._visibleTextRepairQueue) this._visibleTextRepairQueue = new Set();
+    this._visibleTextRepairQueue.add(node);
+    if (this._visibleTextRepairFrame) return;
+    this._visibleTextRepairFrame = window.requestAnimationFrame(() => {
+      const queue = [...(this._visibleTextRepairQueue ?? [])];
+      this._visibleTextRepairQueue?.clear();
+      this._visibleTextRepairFrame = null;
+      queue.forEach(target => this.repairVisibleDom(target));
+    });
+  },
+
   observeVisibleTextRepair() {
     if (this._visibleTextRepairObserver) return;
     this.repairVisibleDom(document.body);
     this._visibleTextRepairObserver = new MutationObserver(mutations => {
       mutations.forEach(mutation => {
         if (mutation.type === 'characterData') {
-          this.repairVisibleDom(mutation.target);
+          this.queueVisibleDomRepair(mutation.target);
           return;
         }
-        mutation.addedNodes.forEach(node => this.repairVisibleDom(node));
+        mutation.addedNodes.forEach(node => this.queueVisibleDomRepair(node));
         if (mutation.type === 'attributes' && mutation.target) {
-          this.repairVisibleDom(mutation.target);
+          this.queueVisibleDomRepair(mutation.target);
         }
       });
     });
@@ -1229,8 +1252,6 @@ const QRManager = {
   },
 
   getArticleQrText(article) {
-    const listingQrText = this.getListingQrText(article);
-    if (listingQrText) return listingQrText;
     const publicQrUrl = PublicQr.getArticleUrl(article);
     if (this.hasConfiguredPublicBaseUrl() && publicQrUrl) return publicQrUrl;
     return String(article?.id ?? '').trim();
@@ -1661,8 +1682,14 @@ const Dashboard = {
     if (cancelArtBtn) {
       cancelArtBtn.addEventListener('click', () => {
         const articleId = State.editingArticleId;
+        const returnGroupId = State.articleReturnGroupId;
         this.resetArticleForm();
-        if (articleId) Router.navigate('inventory');
+        if (returnGroupId) {
+          Router.navigate('groups');
+          setTimeout(() => Groups.openDetail(returnGroupId), 80);
+        } else if (articleId) {
+          Router.navigate('inventory');
+        }
       });
     }
   },
@@ -1813,7 +1840,9 @@ const Dashboard = {
     const urlEl   = document.getElementById('art-public-qr-url');
     if (!tokenEl || !urlEl) return;
     tokenEl.value = article ? PublicQr.getArticleToken(article) : '';
-    urlEl.value   = article ? QRManager.getArticleQrText(article) : '';
+    urlEl.value   = article && QRManager.hasConfiguredPublicBaseUrl()
+      ? PublicQr.getArticleUrl(article)
+      : '';
   },
 
   getCurrentArticleQrData(article = null) {
@@ -2011,16 +2040,22 @@ const Dashboard = {
     document.getElementById('qty-hint-banner')?.remove();
     this.syncPublicQrFields(null);
     State.editingArticleId = null;
+    State.articleReturnGroupId = null;
     State.articlePhotos    = [];
   },
 
   loadArticleIntoForm(id) {
     const a = DB.getArticleById(id);
     if (!a) return;
+    const returnGroupId = State.currentView === 'groups'
+      && !document.getElementById('group-detail-view').classList.contains('hidden')
+      ? Groups._currentGroupId
+      : null;
 
     this.resetArticleForm();
     this.populateArticleCategoryDropdown(a.category);
     State.editingArticleId = id;
+    State.articleReturnGroupId = returnGroupId;
 
     document.querySelectorAll('.form-tab').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -6534,8 +6569,14 @@ const App = {
           } else if (State.currentView === 'dashboard') {
             const activeTab = document.querySelector('.form-tab.active');
             if (activeTab?.dataset.tab === 'tab-article' && State.editingArticleId) {
+              const returnGroupId = State.articleReturnGroupId;
               Dashboard.resetArticleForm();
-              Router.navigate('inventory');
+              if (returnGroupId) {
+                Router.navigate('groups');
+                setTimeout(() => Groups.openDetail(returnGroupId), 80);
+              } else {
+                Router.navigate('inventory');
+              }
             } else if (activeTab?.dataset.tab === 'tab-group' && State.editingGroupId) {
               const groupId = State.editingGroupId;
               Dashboard.resetGroupForm();
