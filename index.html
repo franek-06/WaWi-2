@@ -362,6 +362,15 @@
             </div>
           </div>
 
+          <div class="form-group">
+            <label for="art-external-qr-code">Fremd-QR-Code</label>
+            <input type="text" id="art-external-qr-code"
+                   placeholder="Vorhandenen Fremd-QR scannen oder manuell eingeben"
+                   autocomplete="off"
+                   autocorrect="off"
+                   spellcheck="false"/>
+          </div>
+
           <!-- MaÃŸe -->
           <div class="form-group">
             <label>MaÃŸe (cm)</label>
@@ -766,11 +775,52 @@
                 <i class="fa-solid fa-link"></i>
                 Bestehenden Artikel zuordnen
               </button>
+              <button class="btn btn-outline" id="btn-group-external-qr-mode">
+                <i class="fa-solid fa-qrcode"></i>
+                Fremd-QR-Codes zuordnen
+              </button>
             </div>
           </aside>
 
           <!-- Rechte Spalte: Artikel-Liste -->
           <main class="detail-main">
+            <section id="group-external-qr-panel" class="external-qr-batch hidden">
+              <div class="external-qr-batch__header">
+                <div>
+                  <h3>Serienzuordnung Fremd-QR</h3>
+                  <p>Scanne die vorhandenen Fremd-QR-Codes nacheinander. Es wird immer der nÃ¤chste offene Artikel dieser Gruppe verwendet.</p>
+                </div>
+                <div id="group-external-qr-progress" class="external-qr-batch__progress"></div>
+              </div>
+              <div class="external-qr-batch__body">
+                <div class="form-group" style="margin-bottom:12px;">
+                  <label for="group-external-qr-input">Fremd-QR scannen</label>
+                  <input type="text" id="group-external-qr-input"
+                         placeholder="Fremd-QR scannen und mit Enter bestÃ¤tigen"
+                         autocomplete="off"
+                         autocorrect="off"
+                         spellcheck="false"
+                         disabled/>
+                </div>
+                <div id="group-external-qr-target" class="external-qr-batch__target"></div>
+                <div id="group-external-qr-last-assignment" class="external-qr-batch__last"></div>
+                <div class="external-qr-batch__actions">
+                  <button class="btn btn-ghost btn-sm" id="btn-group-external-qr-undo" type="button" disabled>
+                    <i class="fa-solid fa-arrow-rotate-left"></i> Letzten Scan rÃ¼ckgÃ¤ngig
+                  </button>
+                  <button class="btn btn-ghost btn-sm" id="btn-group-external-qr-skip" type="button" disabled>
+                    <i class="fa-solid fa-forward"></i> Artikel Ã¼berspringen
+                  </button>
+                  <button class="btn btn-outline btn-sm" id="btn-group-external-qr-end" type="button">
+                    <i class="fa-solid fa-xmark"></i> Serienzuordnung beenden
+                  </button>
+                </div>
+                <div class="external-qr-batch__history-wrap">
+                  <div class="external-qr-batch__history-title">Bereits zugeordnete Scans</div>
+                  <div id="group-external-qr-history" class="external-qr-batch__history"></div>
+                </div>
+              </div>
+            </section>
             <h2 class="detail-section-title"
                 id="group-articles-title">
               ZugehÃ¶rige Artikel
@@ -1255,7 +1305,7 @@
             <div>
               <h3 class="tool-card-title">QR-Code Scanner</h3>
               <p class="tool-card-desc">
-                Scanne einen Artikel-QR-Code oder gib die
+                Scanne einen internen oder externen Artikel-QR-Code oder gib die
                 Artikel-ID manuell ein, um Status und Standort
                 schnell zu Ã¤ndern.
               </p>
@@ -1271,7 +1321,7 @@
                         color:var(--color-muted);
                         pointer-events:none;"></i>
               <input type="text" id="scanner-input"
-                     placeholder="Artikel-ID scannen oder eingeben â€¦"
+                     placeholder="Artikel-ID oder Fremd-QR scannen oder eingeben â€¦"
                      style="padding-left:38px;width:100%;"
                      autocomplete="off"
                      autocorrect="off"
