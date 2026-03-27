@@ -1254,6 +1254,8 @@ const QRManager = {
   getArticleQrText(article) {
     const publicQrUrl = PublicQr.getArticleUrl(article);
     if (this.hasConfiguredPublicBaseUrl() && publicQrUrl) return publicQrUrl;
+    const listingQrText = this.getListingQrText(article);
+    if (listingQrText) return listingQrText;
     return String(article?.id ?? '').trim();
   },
 
@@ -1275,12 +1277,14 @@ const QRManager = {
     #qr  { margin-bottom:14px; }
     p    { font-size:16px; margin-top:10px; font-weight:bold; }
     small{ color:#666; font-size:12px; margin-top:4px; display:block; }
+    button { margin-top:18px; padding:10px 16px; border:0; border-radius:8px; background:#2563eb; color:#fff; font-weight:600; cursor:pointer; }
   </style>
 </head>
 <body>
   <div id="qr"></div>
   <p>${Utils.escHtml(label)}</p>
   ${subtitle ? `<small>${Utils.escHtml(subtitle)}</small>` : ''}
+  <button id="print-btn" type="button">Drucken</button>
   <script>
     const qrText = ${JSON.stringify(qrText)};
     new QRCode(document.getElementById('qr'), {
@@ -1291,8 +1295,8 @@ const QRManager = {
       colorLight: '#ffffff',
       correctLevel: QRCode.CorrectLevel.M,
     });
-    window.addEventListener('load', function () {
-      setTimeout(function () { window.print(); }, 250);
+    document.getElementById('print-btn').addEventListener('click', function () {
+      window.print();
     });
   <\/script>
 </body>
