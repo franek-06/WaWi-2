@@ -3530,6 +3530,8 @@ const Groups = {
       .addEventListener('click', () => { GroupSelection.leave(); this._showOverview(); this.render(); });
     document.getElementById('btn-group-external-qr-mode')
       .addEventListener('click', () => this.startExternalQrMode());
+    document.getElementById('btn-group-external-qr-open-scanner')
+      .addEventListener('click', () => this.openExternalQrScanner());
     document.getElementById('group-external-qr-input')
       .addEventListener('keydown', e => {
         if (e.key !== 'Enter') return;
@@ -3725,6 +3727,78 @@ const Groups = {
     }, 0);
   },
 
+  _refreshExternalQrScannerContext() {
+    if (State.currentView === 'scanner' && typeof QRScanner !== 'undefined') {
+      QRScanner._renderExternalQrContext();
+    }
+  },
+
+  isExternalQrModeActive() {
+    return !!(this._externalQrMode && this._currentGroupId);
+  },
+
+  getExternalQrScannerContext() {
+    if (!this.isExternalQrModeActive()) return null;
+    const group = DB.getGroupById(this._currentGroupId);
+    if (!group) return null;
+    const articles = DB.getArticlesByGroup(this._currentGroupId)
+      .sort((a, b) => a.id.localeCompare(b.id));
+    return {
+      group,
+      groupId: group.id,
+      groupName: Utils.groupDisplayName(group, articles, group.id) || group.id,
+      totalCount: articles.length,
+      assignedCount: articles.filter(article => String(article.externalQrCode ?? '').trim()).length,
+      targetArticle: this._getExternalQrTargetArticle(this._currentGroupId),
+    };
+  },
+
+  openExternalQrScanner() {
+    if (!this._currentGroupId) return;
+    if (!this._externalQrMode) this.startExternalQrMode();
+    Router.navigate('scanner');
+    window.setTimeout(() => {
+      QRScanner.setMode('single');
+      QRScanner._renderExternalQrContext();
+    }, 60);
+  },
+
+  _getExternalQrDuplicateTemplate(groupId = this._currentGroupId) {
+    const articles = DB.getArticlesByGroup(groupId)
+      .sort((a, b) => a.id.localeCompare(b.id));
+    if (!articles.length) return null;
+    const lastAssignedArticle = this._externalQrLastAssignment?.articleId
+      ? DB.getArticleById(this._externalQrLastAssignment.articleId)
+      : null;
+    if (lastAssignedArticle && lastAssignedArticle.groupId === groupId) {
+      return lastAssignedArticle;
+    }
+    return articles[articles.length - 1] ?? null;
+  },
+
+  async _createExternalQrDuplicate(groupId = this._currentGroupId) {
+    const templateArticle = this._getExternalQrDuplicateTemplate(groupId);
+    if (!templateArticle) {
+      Toast.error('In dieser Gruppe gibt es keinen Artikel zum Duplizieren.');
+      return null;
+    }
+
+    const duplicateData = {
+      ...templateArticle,
+      photos: Array.isArray(templateArticle.photos) ? [...templateArticle.photos] : [],
+      quantity: 1,
+      externalQrCode: null,
+      externalQrAssignedAt: null,
+      externalQrAssignedBy: null,
+    };
+    delete duplicateData.id;
+    delete duplicateData.createdAt;
+    delete duplicateData.updatedAt;
+
+    const duplicateArticle = await DB.saveArticle(duplicateData);
+    return { duplicateArticle, templateArticle };
+  },
+
   startExternalQrMode() {
     if (!this._currentGroupId) return;
     const searchInput = document.getElementById('ga-search');
@@ -3741,12 +3815,14 @@ const Groups = {
     this._renderExternalQrPanel(this._currentGroupId);
     this._renderGroupArticles(this._currentGroupId);
     this._focusExternalQrInput();
+    this._refreshExternalQrScannerContext();
   },
 
   stopExternalQrMode() {
     if (!this._externalQrMode) return;
     this._resetExternalQrState();
     if (this._currentGroupId) this._renderGroupArticles(this._currentGroupId);
+    this._refreshExternalQrScannerContext();
   },
 
   skipExternalQrTarget() {
@@ -3765,77 +3841,102 @@ const Groups = {
     this._renderExternalQrPanel(this._currentGroupId);
     this._renderGroupArticles(this._currentGroupId);
     this._focusExternalQrInput();
+    this._refreshExternalQrScannerContext();
   },
 
-  assignExternalQrToCurrentArticle(rawValue) {
-    if (!this._externalQrMode || !this._currentGroupId) return;
+  async assignExternalQrToCurrentArticle(rawValue) {
+    if (!this._externalQrMode || !this._currentGroupId) return false;
     const input = document.getElementById('group-external-qr-input');
     const value = String(rawValue ?? '').trim();
     if (!value) {
       this._focusExternalQrInput();
-      return;
+      return false;
     }
 
-    const targetArticle = this._getExternalQrTargetArticle(this._currentGroupId);
-    if (!targetArticle) {
-      Toast.warning('Alle Artikel dieser Gruppe haben bereits einen Fremd-QR-Code.');
-      if (input) input.value = '';
-      this._renderExternalQrPanel(this._currentGroupId);
-      return;
-    }
-
-    if (String(targetArticle.externalQrCode ?? '').trim()) {
-      Toast.error(`Artikel ${targetArticle.id} hat bereits einen Fremd-QR-Code. Bitte zuerst entfernen.`);
-      this._renderExternalQrPanel(this._currentGroupId);
-      this._renderGroupArticles(this._currentGroupId);
-      this._focusExternalQrInput();
-      return;
-    }
-
-    const validation = ScanResolver.validateExternalQrCode(value, targetArticle.id);
-    if (!validation.ok) {
-      Toast.error(validation.message);
-      if (input) {
-        input.focus();
-        input.select();
+    try {
+      const queueBefore = [...this._externalQrQueue];
+      let targetArticle = this._getExternalQrTargetArticle(this._currentGroupId);
+      const validation = ScanResolver.validateExternalQrCode(value, targetArticle?.id ?? null);
+      if (!validation.ok) {
+        Toast.error(validation.message);
+        if (input) {
+          input.focus();
+          input.select();
+        }
+        return false;
       }
-      return;
-    }
 
-    const queueBefore = [...this._externalQrQueue];
-    const assignmentId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const articleName = Utils.articleDisplayName(targetArticle, targetArticle.id);
+      let duplicateMeta = null;
+      if (!targetArticle) {
+        duplicateMeta = await this._createExternalQrDuplicate(this._currentGroupId);
+        if (!duplicateMeta) {
+          if (input) input.value = '';
+          this._renderExternalQrPanel(this._currentGroupId);
+          this._renderGroupArticles(this._currentGroupId);
+          this._refreshExternalQrScannerContext();
+          return false;
+        }
+        targetArticle = duplicateMeta.duplicateArticle;
+      }
 
-    DB.updateArticle(targetArticle.id, { externalQrCode: validation.value });
-    this._externalQrQueue = queueBefore.filter(id => id !== targetArticle.id);
-    this._externalQrHistory.push({
-      assignmentId,
-      articleId: targetArticle.id,
-      previousCode: targetArticle.externalQrCode || null,
-      newCode: validation.value,
-      queueBefore,
-    });
-    this._externalQrRecentAssignments = [
-      {
+      if (String(targetArticle.externalQrCode ?? '').trim()) {
+        Toast.error(`Artikel ${targetArticle.id} hat bereits einen Fremd-QR-Code. Bitte zuerst entfernen.`);
+        this._renderExternalQrPanel(this._currentGroupId);
+        this._renderGroupArticles(this._currentGroupId);
+        this._focusExternalQrInput();
+        this._refreshExternalQrScannerContext();
+        return false;
+      }
+
+      const assignmentId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const articleName = Utils.articleDisplayName(targetArticle, targetArticle.id);
+
+      DB.updateArticle(targetArticle.id, { externalQrCode: validation.value });
+      this._externalQrQueue = queueBefore.filter(id => id !== targetArticle.id);
+      this._externalQrHistory.push({
         assignmentId,
+        articleId: targetArticle.id,
+        previousCode: targetArticle.externalQrCode || null,
+        newCode: validation.value,
+        queueBefore,
+        createdArticleId: duplicateMeta?.duplicateArticle?.id ?? null,
+        duplicatedFromArticleId: duplicateMeta?.templateArticle?.id ?? null,
+      });
+      this._externalQrRecentAssignments = [
+        {
+          assignmentId,
+          articleId: targetArticle.id,
+          articleName,
+          code: validation.value,
+        },
+        ...this._externalQrRecentAssignments,
+      ].slice(0, 12);
+      this._externalQrLastAssignment = {
         articleId: targetArticle.id,
         articleName,
         code: validation.value,
-      },
-      ...this._externalQrRecentAssignments,
-    ].slice(0, 12);
-    this._externalQrLastAssignment = {
-      articleId: targetArticle.id,
-      articleName,
-      code: validation.value,
-    };
+      };
 
-    if (input) input.value = '';
+      if (input) input.value = '';
 
-    Toast.success(`Fremd-QR ${validation.value} wurde ${targetArticle.id} zugeordnet.`);
-    this._renderExternalQrPanel(this._currentGroupId);
-    this._renderGroupArticles(this._currentGroupId);
-    this._focusExternalQrInput();
+      if (duplicateMeta?.duplicateArticle) {
+        const group = DB.getGroupById(this._currentGroupId);
+        if (group) this._renderGroupInfoCard(group);
+        Toast.success(`Fremd-QR ${validation.value} wurde ${targetArticle.id} zugeordnet. ${targetArticle.id} wurde dafuer automatisch aus ${duplicateMeta.templateArticle.id} dupliziert.`);
+      } else {
+        Toast.success(`Fremd-QR ${validation.value} wurde ${targetArticle.id} zugeordnet.`);
+      }
+      this._renderExternalQrPanel(this._currentGroupId);
+      this._renderGroupArticles(this._currentGroupId);
+      this._focusExternalQrInput();
+      this._refreshExternalQrScannerContext();
+      return true;
+    } catch (err) {
+      console.error('assignExternalQrToCurrentArticle failed:', err);
+      Toast.error('Fremd-QR-Zuordnung fehlgeschlagen.');
+      this._refreshExternalQrScannerContext();
+      return false;
+    }
   },
 
   undoLastExternalQrAssignment() {
@@ -3846,9 +3947,15 @@ const Groups = {
       return;
     }
 
-    DB.updateArticle(lastAssignment.articleId, {
-      externalQrCode: lastAssignment.previousCode || null,
-    });
+    if (lastAssignment.createdArticleId && lastAssignment.createdArticleId === lastAssignment.articleId) {
+      DB.hardDeleteArticle(lastAssignment.articleId);
+      const group = DB.getGroupById(this._currentGroupId);
+      if (group) this._renderGroupInfoCard(group);
+    } else {
+      DB.updateArticle(lastAssignment.articleId, {
+        externalQrCode: lastAssignment.previousCode || null,
+      });
+    }
     this._externalQrQueue = [...lastAssignment.queueBefore];
     this._externalQrRecentAssignments = this._externalQrRecentAssignments
       .filter(entry => entry.assignmentId !== lastAssignment.assignmentId);
@@ -3862,10 +3969,15 @@ const Groups = {
         }
       : null;
 
-    Toast.success(`Der letzte Fremd-QR-Scan für ${lastAssignment.articleId} wurde rückgängig gemacht.`);
+    Toast.success(
+      lastAssignment.createdArticleId && lastAssignment.createdArticleId === lastAssignment.articleId
+        ? `Der letzte Fremd-QR-Scan fuer ${lastAssignment.articleId} wurde rueckgaengig gemacht und das automatische Duplikat entfernt.`
+        : `Der letzte Fremd-QR-Scan fuer ${lastAssignment.articleId} wurde rueckgaengig gemacht.`
+    );
     this._renderExternalQrPanel(this._currentGroupId);
     this._renderGroupArticles(this._currentGroupId);
     this._focusExternalQrInput();
+    this._refreshExternalQrScannerContext();
   },
 
   _enqueueExternalQrArticle(articleId, addToFront = false) {
@@ -3887,7 +3999,8 @@ const Groups = {
     const input = document.getElementById('group-external-qr-input');
     const undoBtn = document.getElementById('btn-group-external-qr-undo');
     const skipBtn = document.getElementById('btn-group-external-qr-skip');
-    if (!panel || !progressEl || !targetEl || !historyEl || !lastEl || !input || !undoBtn || !skipBtn) return;
+    const openScannerBtn = document.getElementById('btn-group-external-qr-open-scanner');
+    if (!panel || !progressEl || !targetEl || !historyEl || !lastEl || !input || !undoBtn || !skipBtn || !openScannerBtn) return;
 
     if (!this._externalQrMode || !groupId) {
       panel.classList.add('hidden');
@@ -3899,6 +4012,7 @@ const Groups = {
       input.disabled = true;
       undoBtn.disabled = true;
       skipBtn.disabled = true;
+      openScannerBtn.disabled = true;
       return;
     }
 
@@ -3906,15 +4020,17 @@ const Groups = {
     const articles = DB.getArticlesByGroup(groupId).sort((a, b) => a.id.localeCompare(b.id));
     const assignedCount = articles.filter(article => String(article.externalQrCode ?? '').trim()).length;
     const targetArticle = this._getExternalQrTargetArticle(groupId);
+    const canAssign = articles.length > 0;
 
     panel.classList.remove('hidden');
     progressEl.textContent = `${assignedCount} von ${articles.length} zugeordnet`;
-    input.disabled = !targetArticle;
-    input.placeholder = targetArticle
+    input.disabled = !canAssign;
+    input.placeholder = targetArticle || canAssign
       ? 'Fremd-QR scannen und mit Enter bestätigen'
-      : 'Keine offenen Artikel mehr';
+      : 'Keine Artikel in dieser Gruppe';
     undoBtn.disabled = !this._externalQrHistory.length;
     skipBtn.disabled = !targetArticle || this._externalQrQueue.length <= 1;
+    openScannerBtn.disabled = !canAssign;
 
     targetEl.innerHTML = targetArticle
       ? `
@@ -3928,10 +4044,16 @@ const Groups = {
             </span>
           </div>
         </div>`
+      : canAssign
+      ? `
+        <div class="external-qr-batch__target-empty">
+          <i class="fa-solid fa-copy"></i>
+          <span>Alle vorhandenen Artikel haben bereits einen Fremd-QR-Code. Der naechste Scan legt automatisch ein weiteres Duplikat in dieser Gruppe an.</span>
+        </div>`
       : `
         <div class="external-qr-batch__target-empty">
-          <i class="fa-solid fa-circle-check"></i>
-          <span>Alle Artikel dieser Gruppe haben bereits einen Fremd-QR-Code.</span>
+          <i class="fa-solid fa-circle-xmark"></i>
+          <span>In dieser Gruppe sind noch keine Artikel vorhanden.</span>
         </div>`;
 
     lastEl.innerHTML = this._externalQrLastAssignment
@@ -3984,6 +4106,7 @@ const Groups = {
         Toast.success(`Fremd-QR-Code von ${articleId} wurde entfernt.`);
         this._renderGroupArticles(groupId);
         this._focusExternalQrInput();
+        this._refreshExternalQrScannerContext();
       });
     });
   },
@@ -5370,8 +5493,21 @@ const QRScanner = {
       .addEventListener('keydown', e => {
         if (e.key === 'Enter') this.applyRelocation();
       });
+    document.getElementById('btn-scanner-context-back')
+      .addEventListener('click', () => {
+        const groupId = Groups._currentGroupId;
+        if (!groupId) return;
+        Router.navigate('groups');
+        window.setTimeout(() => Groups.openDetail(groupId), 80);
+      });
+    document.getElementById('btn-scanner-context-end')
+      .addEventListener('click', () => {
+        Groups.stopExternalQrMode();
+        this._renderExternalQrContext();
+      });
     this.setMode('single');
     this._renderRelocationList();
+    this._renderExternalQrContext();
   },
 
   setMode(mode) {
@@ -5384,7 +5520,7 @@ const QRScanner = {
     document.getElementById('scanner-result')
       .classList.toggle('hidden', this._mode !== 'single');
     document.getElementById('scanner-rescan').style.display =
-      this._mode === 'single' && this._activeResultId ? 'inline-flex' : 'none';
+      this._mode === 'single' && this._activeResultId && !Groups.isExternalQrModeActive() ? 'inline-flex' : 'none';
 
     if (this._mode === 'single') {
       this._setRelocationAwaitingLocationScan(false);
@@ -5395,6 +5531,7 @@ const QRScanner = {
       this._setRelocationAwaitingLocationScan(false);
       this._setBadge(this._running ? 'scanning' : 'idle');
     }
+    this._renderExternalQrContext();
   },
 
   resetRelocation() {
@@ -5432,6 +5569,11 @@ const QRScanner = {
 
   refreshActiveResult() {
     if (this._mode !== 'single') return;
+    if (Groups.isExternalQrModeActive()) {
+      this._setResult(null);
+      this._renderExternalQrContext();
+      return;
+    }
     if (!this._activeResultId) {
       this._setResult(null);
       return;
@@ -5489,6 +5631,7 @@ const QRScanner = {
   },
 
   async start() {
+    this._renderExternalQrContext();
     if (this._mode === 'single') this._setResult(null);
     this._setBadge('scanning');
     if (this._mode === 'single') {
@@ -5539,6 +5682,7 @@ const QRScanner = {
     this._setBadge('idle');
     document.getElementById('scanner-rescan').style.display = 'none';
     if (this._mode === 'single') this._setResult(null);
+    this._renderExternalQrContext();
   },
 
   async _onScan(text) {
@@ -5550,6 +5694,27 @@ const QRScanner = {
 
     if (this._mode === 'relocate') {
       await this._handleRelocationScan(value);
+      return;
+    }
+
+    if (Groups.isExternalQrModeActive()) {
+      if (this._scanner && this._running) {
+        try { await this._scanner.pause(true); } catch (_) {}
+      }
+      this._setBadge('found');
+      try {
+        await Groups.assignExternalQrToCurrentArticle(value);
+      } catch (err) {
+        console.error('scanner external qr assignment failed:', err);
+        Toast.error('Fremd-QR-Zuordnung im Scanner fehlgeschlagen.');
+      }
+      this._renderExternalQrContext();
+      window.setTimeout(() => {
+        if (this._scanner && this._running) {
+          try { this._scanner.resume(); } catch (_) {}
+        }
+        this._setBadge('scanning');
+      }, 280);
       return;
     }
 
@@ -5686,6 +5851,67 @@ const QRScanner = {
     el.className = 'scanner-badge scanner-badge--' + state;
     el.textContent = { idle: 'Bereit', scanning: 'Scannt â€¦', found: 'Gefunden âœ“' }[state] ?? state;
   },
+
+  _renderExternalQrContext() {
+    const panel = document.getElementById('scanner-context-panel');
+    const subtitle = document.getElementById('scanner-context-subtitle');
+    const progress = document.getElementById('scanner-context-progress');
+    const body = document.getElementById('scanner-context-body');
+    const rescanBtn = document.getElementById('scanner-rescan');
+    if (!panel || !subtitle || !progress || !body || !rescanBtn) return;
+
+    const context = Groups.getExternalQrScannerContext();
+    if (!context) {
+      panel.classList.add('hidden');
+      subtitle.textContent = '';
+      progress.textContent = '';
+      body.innerHTML = '';
+      rescanBtn.style.display =
+        this._mode === 'single' && this._activeResultId ? 'inline-flex' : 'none';
+      return;
+    }
+
+    panel.classList.remove('hidden');
+    subtitle.textContent = `${context.groupId} · ${context.groupName}`;
+    progress.textContent = `${context.assignedCount} von ${context.totalCount} zugeordnet`;
+    rescanBtn.style.display = 'none';
+
+    let html = '';
+    if (context.targetArticle) {
+      html += `
+        <div class="scanner-context-panel__card">
+          <span>${Utils.escHtml(context.targetArticle.id)}</span>
+          <strong>${Utils.escHtml(Utils.articleDisplayName(context.targetArticle, context.targetArticle.id))}</strong>
+          <div class="scanner-context-panel__meta">
+            ${Utils.statusBadge(context.targetArticle.status)}
+            <span class="external-qr-chip external-qr-chip--missing">
+              <i class="fa-solid fa-qrcode"></i> Fremd-QR fehlt
+            </span>
+          </div>
+        </div>`;
+    } else if (context.totalCount) {
+      html += `
+        <div class="scanner-context-panel__empty">
+          <i class="fa-solid fa-copy"></i>
+          <span>Alle vorhandenen Artikel haben bereits einen Fremd-QR-Code. Der naechste Scan legt automatisch ein weiteres Duplikat in dieser Gruppe an.</span>
+        </div>`;
+    } else {
+      html += `
+        <div class="scanner-context-panel__empty">
+          <i class="fa-solid fa-circle-xmark"></i>
+          <span>In dieser Gruppe sind noch keine Artikel vorhanden.</span>
+        </div>`;
+    }
+
+    if (this._mode !== 'single') {
+      html += `
+        <div class="scanner-context-panel__hint">
+          Fuer die Fremd-QR-Serienzuordnung bitte den Modus "Einzel-Scan" aktiv lassen.
+        </div>`;
+    }
+
+    body.innerHTML = html;
+  },
 };
 
 /* ============================================================
@@ -5710,6 +5936,7 @@ const App = {
       } else if (State.currentView === 'scanner') {
         QRScanner.refreshActiveResult();
         QRScanner._renderRelocationList();
+        QRScanner._renderExternalQrContext();
       } else if (State.currentView === 'groups') {
         const detailVisible = !document.getElementById('group-detail-view').classList.contains('hidden');
         if (detailVisible && Groups._currentGroupId) {

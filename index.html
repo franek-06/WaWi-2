@@ -788,7 +788,7 @@
               <div class="external-qr-batch__header">
                 <div>
                   <h3>Serienzuordnung Fremd-QR</h3>
-                  <p>Scanne die vorhandenen Fremd-QR-Codes nacheinander. Es wird immer der nÃ¤chste offene Artikel dieser Gruppe verwendet.</p>
+                  <p>Scanne die vorhandenen Fremd-QR-Codes nacheinander. Es wird immer der naechste offene Artikel dieser Gruppe verwendet. Wenn keiner mehr offen ist, wird beim naechsten Scan automatisch ein weiterer Artikel in dieser Gruppe dupliziert.</p>
                 </div>
                 <div id="group-external-qr-progress" class="external-qr-batch__progress"></div>
               </div>
@@ -805,6 +805,9 @@
                 <div id="group-external-qr-target" class="external-qr-batch__target"></div>
                 <div id="group-external-qr-last-assignment" class="external-qr-batch__last"></div>
                 <div class="external-qr-batch__actions">
+                  <button class="btn btn-primary btn-sm" id="btn-group-external-qr-open-scanner" type="button">
+                    <i class="fa-solid fa-camera"></i> Kamera-Scanner oeffnen
+                  </button>
                   <button class="btn btn-ghost btn-sm" id="btn-group-external-qr-undo" type="button" disabled>
                     <i class="fa-solid fa-arrow-rotate-left"></i> Letzten Scan rÃ¼ckgÃ¤ngig
                   </button>
@@ -1431,6 +1434,25 @@
               <button class="scanner-mode-btn" data-scanner-mode="relocate">
                 <i class="fa-solid fa-warehouse"></i> Umlagerung
               </button>
+            </div>
+
+            <div id="scanner-context-panel" class="scanner-context-panel hidden">
+              <div class="scanner-context-panel__header">
+                <div>
+                  <h3>Aktive Fremd-QR-Serienzuordnung</h3>
+                  <p id="scanner-context-subtitle"></p>
+                </div>
+                <div id="scanner-context-progress" class="scanner-context-panel__progress"></div>
+              </div>
+              <div id="scanner-context-body" class="scanner-context-panel__body"></div>
+              <div class="scanner-context-panel__actions">
+                <button class="btn btn-outline btn-sm" id="btn-scanner-context-back" type="button">
+                  <i class="fa-solid fa-arrow-left"></i> Zur Gruppe
+                </button>
+                <button class="btn btn-ghost btn-sm" id="btn-scanner-context-end" type="button">
+                  <i class="fa-solid fa-xmark"></i> Serienzuordnung beenden
+                </button>
+              </div>
             </div>
 
             <div id="scanner-relocation-panel" class="scanner-relocation-card hidden">
