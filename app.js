@@ -1280,8 +1280,8 @@ const QRManager = {
     w.focus();
   },
 
-  printQR(articleId) {
-    const a = DB.getArticleById(articleId);
+  printQR(articleId, articleOverride = null) {
+    const a = articleOverride ?? DB.getArticleById(articleId);
     if (!a) return;
     const qrText = this.getArticleQrText(a);
     if (!qrText) {
@@ -1627,6 +1627,9 @@ const Dashboard = {
     document.getElementById('art-quantity')
       .addEventListener('input', e => this.updateQtyHint(parseInt(e.target.value) || 1));
 
+    document.getElementById('art-listing-link')
+      .addEventListener('input', () => this.refreshArticleQrPreview());
+
     document.getElementById('art-external-qr-code')
       .addEventListener('keydown', e => {
         if (e.key === 'Enter') e.preventDefault();
@@ -1651,7 +1654,8 @@ const Dashboard = {
 
     document.getElementById('btn-print-qr')
       .addEventListener('click', () => {
-        if (State.editingArticleId) QRManager.printQR(State.editingArticleId);
+        const qrArticle = this.getCurrentArticleQrData();
+        if (State.editingArticleId && qrArticle) QRManager.printQR(State.editingArticleId, qrArticle);
       });
     const cancelArtBtn = document.getElementById('btn-cancel-article');
     if (cancelArtBtn) {
@@ -1812,6 +1816,24 @@ const Dashboard = {
     urlEl.value   = article ? QRManager.getArticleQrText(article) : '';
   },
 
+  getCurrentArticleQrData(article = null) {
+    const baseArticle = article ?? (State.editingArticleId ? DB.getArticleById(State.editingArticleId) : null);
+    if (!baseArticle) return null;
+    return {
+      ...baseArticle,
+      listingLink: document.getElementById('art-listing-link').value.trim(),
+    };
+  },
+
+  refreshArticleQrPreview(article = null) {
+    const qrArticle = this.getCurrentArticleQrData(article);
+    this.syncPublicQrFields(qrArticle);
+    const previewEl = document.getElementById('art-qr-preview');
+    if (!previewEl) return;
+    previewEl.innerHTML = '';
+    if (qrArticle) QRManager.generate('art-qr-preview', QRManager.getArticleQrText(qrArticle), 128);
+  },
+
   applyArticleListingLinkToGroup() {
     const listingInput = document.getElementById('art-listing-link');
     const listingLink  = listingInput.value.trim();
@@ -1847,6 +1869,7 @@ const Dashboard = {
 
     DB.updateGroup(groupId, { listingLink });
     DB.updateArticles(articles.map(article => article.id), { listingLink });
+    this.refreshArticleQrPreview();
     Toast.success('Kleinanzeigen-Link bei ' + articles.length + ' Artikel(n) der Gruppe übernommen.');
   },
 
@@ -1933,8 +1956,7 @@ const Dashboard = {
       document.getElementById('art-id-display').value         = saved.id;
       document.getElementById('art-qr-section').style.display = 'block';
       State.editingArticleId = saved.id;
-      this.syncPublicQrFields(saved);
-      QRManager.generate('art-qr-preview', QRManager.getArticleQrText(saved), 128);
+      this.refreshArticleQrPreview(saved);
       this.renderStats();
       const savedId = saved.id;
       setTimeout(() => {
@@ -1961,8 +1983,7 @@ const Dashboard = {
     document.getElementById('art-id-display').value         = firstId;
     document.getElementById('art-qr-section').style.display = 'block';
     State.editingArticleId = firstId;
-    this.syncPublicQrFields(firstArticle);
-    QRManager.generate('art-qr-preview', QRManager.getArticleQrText(firstArticle), 128);
+    this.refreshArticleQrPreview(firstArticle);
     document.getElementById('qty-hint-banner')?.remove();
     if (qty > 1) {
       Toast.success(qty + ' Artikel angelegt (' + articleIds[0] + '-' + articleIds[articleIds.length - 1] + ') Â· Gruppe "' + Utils.escHtml(group.name) + '".');
@@ -2061,8 +2082,7 @@ const Dashboard = {
     );
 
     document.getElementById('art-qr-section').style.display = 'block';
-    this.syncPublicQrFields(a);
-    QRManager.generate('art-qr-preview', QRManager.getArticleQrText(a), 128);
+    this.refreshArticleQrPreview(a);
 
     Router.navigate('dashboard');
     window.scrollTo({ top: 0, behavior: 'smooth' });
