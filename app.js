@@ -21,15 +21,17 @@ const PUBLIC_QR_CONFIG = (() => {
     cleanOrigin !== 'null';
   const fallbackOrigin = `https://${firebaseConfig.authDomain}`.replace(/\/+$/, '');
   return {
-    baseUrl: `${isUsableCurrentOrigin ? cleanOrigin : fallbackOrigin}/a/`,
+    baseUrl: `${isUsableCurrentOrigin ? cleanOrigin : fallbackOrigin}/#/a/`,
   };
 })();
 const INITIAL_PUBLIC_QR_ROUTE = (() => {
   try {
     const base = new URL(PUBLIC_QR_CONFIG.baseUrl);
-    const basePath = base.pathname.endsWith('/') ? base.pathname : `${base.pathname}/`;
+    const baseHashPath = String(base.hash ?? '').replace(/^#/, '');
+    const currentHashPath = String(window.location.hash ?? '').replace(/^#/, '');
     return window.location.origin === base.origin
-      && window.location.pathname.startsWith(basePath);
+      && !!baseHashPath
+      && currentHashPath.startsWith(baseHashPath);
   } catch (_) {
     return false;
   }
@@ -1135,8 +1137,18 @@ const PublicQr = {
   },
 
   getBasePath() {
+    const baseHashPath = this.getBaseHashPath();
+    if (baseHashPath) {
+      return baseHashPath.startsWith('/') ? baseHashPath : `/${baseHashPath}`;
+    }
     const basePath = this.getBase().pathname;
     return basePath.endsWith('/') ? basePath : `${basePath}/`;
+  },
+
+  getBaseHashPath() {
+    const baseHashPath = String(this.getBase().hash ?? '').replace(/^#/, '');
+    if (!baseHashPath) return '';
+    return baseHashPath.endsWith('/') ? baseHashPath : `${baseHashPath}/`;
   },
 
   normalizeToken(rawValue) {
@@ -1187,9 +1199,20 @@ const PublicQr = {
     try {
       const url = new URL(value);
       const base = this.getBase();
-      const basePath = this.getBasePath();
-      if (url.origin !== base.origin || !url.pathname.startsWith(basePath)) return null;
-      const restPath = url.pathname.slice(basePath.length).replace(/^\/+/, '');
+      if (url.origin !== base.origin) return null;
+
+      const baseHashPath = this.getBaseHashPath();
+      const currentHashPath = String(url.hash ?? '').replace(/^#/, '');
+      let restPath = '';
+
+      if (baseHashPath && currentHashPath.startsWith(baseHashPath)) {
+        restPath = currentHashPath.slice(baseHashPath.length).replace(/^\/+/, '');
+      } else {
+        const basePath = this.getBasePath();
+        if (!url.pathname.startsWith(basePath)) return null;
+        restPath = url.pathname.slice(basePath.length).replace(/^\/+/, '');
+      }
+
       const rawToken = restPath.split('/')[0] ?? '';
       const token = this.normalizeToken(rawToken);
       if (!token) return null;
