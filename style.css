@@ -3349,6 +3349,61 @@ tr[data-id].is-selected > td {
   background: var(--color-success);
 }
 
+.warehouse-position-card__locations {
+  margin-top: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.warehouse-position-card__locations summary {
+  cursor: pointer;
+  padding: 12px 14px;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--color-primary);
+  list-style: none;
+}
+
+.warehouse-position-card__locations summary::-webkit-details-marker {
+  display: none;
+}
+
+.warehouse-location-list {
+  border-top: 1px solid var(--color-border);
+  padding: 10px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.warehouse-location-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: var(--border-radius-sm);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+}
+
+.warehouse-location-item span {
+  color: var(--color-text-secondary);
+}
+
+.warehouse-position-card__locations-empty {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
 .warehouse-finished-toggle {
   margin-left: 6px;
 }
@@ -3537,10 +3592,34 @@ body.permission-warehouse #topbar-new-article-btn {
   box-shadow:   var(--shadow-md);
 }
 
+.btn-google-login:disabled {
+  cursor: wait;
+  opacity: 0.85;
+}
+
+.btn-google-login.is-loading {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
 .login-error {
   font-size: var(--font-size-xs);
   color:     var(--color-danger);
   margin:    0;
+}
+
+.login-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  animation: login-spinner-rotate 0.8s linear infinite;
+}
+
+@keyframes login-spinner-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 #public-qr-screen {

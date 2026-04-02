@@ -7009,6 +7009,28 @@ const OrderLogic = {
       .length;
   },
 
+  getLocationBreakdown(groupId, excludedArticleIds = []) {
+    const excludedIds = new Set(
+      (excludedArticleIds ?? []).map(articleId => String(articleId ?? '').trim()).filter(Boolean)
+    );
+    const locationBuckets = new Map();
+
+    DB.getArticlesByGroup(groupId)
+      .filter(article =>
+        !excludedIds.has(String(article.id ?? '').trim())
+        && !['Entsorgt', 'Verkauft'].includes(Utils.normalizeStatus(article.status))
+      )
+      .forEach(article => {
+        const location = String(article.location ?? '').trim() || 'Kein Standort';
+        const quantity = parseInt(article.quantity, 10) || 1;
+        locationBuckets.set(location, (locationBuckets.get(location) || 0) + quantity);
+      });
+
+    return Array.from(locationBuckets.entries())
+      .map(([location, quantity]) => ({ location, quantity }))
+      .sort((left, right) => left.location.localeCompare(right.location));
+  },
+
   normalizePositions(positions = []) {
     const merged = new Map();
 
@@ -7737,6 +7759,10 @@ const Warehouse = {
       const quantity = parseInt(position.quantity, 10) || 0;
       const percent = quantity ? Math.round((picked / quantity) * 100) : 0;
       const isComplete = picked >= quantity;
+      const locationBreakdown = OrderLogic.getLocationBreakdown(position.groupId, position.scannedArticleIds ?? []);
+      const locationSummary = locationBreakdown.length
+        ? `Standorte anzeigen (${locationBreakdown.reduce((sum, item) => sum + item.quantity, 0)} Stück an ${locationBreakdown.length} Ort${locationBreakdown.length === 1 ? '' : 'en'})`
+        : 'Keine offenen Standorte verfügbar';
       return `<article class="warehouse-position-card${isComplete ? ' is-complete' : ''}">
         <div class="warehouse-position-card__header">
           <div>
@@ -7754,6 +7780,18 @@ const Warehouse = {
             <span style="width:${percent}%"></span>
           </div>
         </div>
+        ${locationBreakdown.length
+          ? `<details class="warehouse-position-card__locations">
+              <summary>${Utils.escHtml(locationSummary)}</summary>
+              <div class="warehouse-location-list">
+                ${locationBreakdown.map(item => `
+                  <div class="warehouse-location-item">
+                    <span>${item.quantity} Stück</span>
+                    <strong>${Utils.escHtml(item.location)}</strong>
+                  </div>`).join('')}
+              </div>
+            </details>`
+          : `<div class="warehouse-position-card__locations-empty">Für diese Position sind aktuell keine offenen Standortbestände mehr vorhanden.</div>`}
       </article>`;
     }).join('');
 
@@ -8510,9 +8548,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let appInitialized = false;
   Utils.observeVisibleTextRepair();
+  const googleLoginBtn = document.getElementById('google-login-btn');
+  const googleLoginBtnLabel = document.getElementById('google-login-btn-label');
+  const googleLoginSpinner = document.getElementById('google-login-spinner');
+  const setLoginLoading = isLoading => {
+    if (googleLoginBtn) {
+      googleLoginBtn.disabled = isLoading;
+      googleLoginBtn.classList.toggle('is-loading', isLoading);
+    }
+    if (googleLoginSpinner) {
+      googleLoginSpinner.classList.toggle('hidden', !isLoading);
+    }
+    if (googleLoginBtnLabel) {
+      googleLoginBtnLabel.textContent = isLoading ? 'Anmeldung läuft ...' : 'Mit Google anmelden';
+    }
+  };
 
   document.getElementById('google-login-btn').addEventListener('click', () => {
+    setLoginLoading(true);
     _auth.signInWithPopup(_googleProvider).catch(e => {
+      setLoginLoading(false);
       const el = document.getElementById('login-error');
       if (el) { el.textContent = 'Login fehlgeschlagen: ' + e.message; el.style.display = 'block'; }
     });
@@ -8526,6 +8581,7 @@ document.addEventListener('DOMContentLoaded', () => {
   _auth.onAuthStateChanged(async user => {
     const errorEl = document.getElementById('login-error');
     if (!user) {
+      setLoginLoading(false);
       AccessControl.clearSession();
       document.getElementById('login-screen').classList.remove('hidden');
       document.getElementById('app').classList.add('hidden');
@@ -8538,6 +8594,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const access = await AccessControl.syncAuthUser(user);
     if (!access.allowed) {
+      setLoginLoading(false);
       document.getElementById('login-screen').classList.remove('hidden');
       document.getElementById('app').classList.add('hidden');
       if (errorEl) {
@@ -8553,6 +8610,7 @@ document.addEventListener('DOMContentLoaded', () => {
       errorEl.style.display = 'none';
       errorEl.textContent = '';
     }
+    setLoginLoading(false);
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
     AccessControl.refreshNavigation();
