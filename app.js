@@ -52,6 +52,9 @@ class WawiDB {
   constructor() {
     this._articles  = [];
     this._groups    = [];
+    this._orders    = [];
+    this._roles     = [];
+    this._users     = [];
     this._db        = firebase.firestore();
     this._listeners = new Set();
     this._notifyQueued = false;
@@ -80,12 +83,15 @@ class WawiDB {
 
   _load() {
     return new Promise((resolve, reject) => {
-      let pendingInitialSnapshots = 2;
+      let pendingInitialSnapshots = 5;
       let settled = false;
 
       const handleSnapshot = (type, snap) => {
         if (type === 'articles') this._articles = snap.docs.map(d => d.data());
         if (type === 'groups')   this._groups   = snap.docs.map(d => d.data());
+        if (type === 'orders')   this._orders   = snap.docs.map(d => d.data());
+        if (type === 'roles')    this._roles    = snap.docs.map(d => d.data());
+        if (type === 'users')    this._users    = snap.docs.map(d => d.data());
 
         if (pendingInitialSnapshots > 0) {
           pendingInitialSnapshots--;
@@ -113,6 +119,18 @@ class WawiDB {
       );
       this._db.collection('groups').onSnapshot(
         snap => handleSnapshot('groups', snap),
+        handleError
+      );
+      this._db.collection('orders').onSnapshot(
+        snap => handleSnapshot('orders', snap),
+        handleError
+      );
+      this._db.collection('roles').onSnapshot(
+        snap => handleSnapshot('roles', snap),
+        handleError
+      );
+      this._db.collection('users').onSnapshot(
+        snap => handleSnapshot('users', snap),
         handleError
       );
     });
@@ -318,6 +336,131 @@ class WawiDB {
 
   getGroups()      { return [...this._groups]; }
   getGroupById(id) { return this._groups.find(g => g.id === id) ?? null; }
+
+  getOrders()      { return [...this._orders]; }
+  getOrderById(id) { return this._orders.find(order => order.id === id) ?? null; }
+
+  async saveOrder(data) {
+    const [id] = await this._reserveIds(
+      'orderLastNumber',
+      'O-',
+      1,
+      this._maxNumericId(this._orders, 'O-')
+    );
+    const now   = Date.now();
+    const order = {
+      ...data,
+      id,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this._orders.push(order);
+    await this._fsSet('orders', order.id, order);
+    return order;
+  }
+
+  updateOrder(id, data) {
+    const idx = this._orders.findIndex(order => order.id === id);
+    if (idx === -1) return null;
+    this._orders[idx] = {
+      ...this._orders[idx],
+      ...data,
+      updatedAt: Date.now(),
+    };
+    this._fsSet('orders', id, this._orders[idx]);
+    return this._orders[idx];
+  }
+
+  getRoles()      { return [...this._roles]; }
+  getRoleById(id) { return this._roles.find(role => role.id === id) ?? null; }
+
+  async saveRole(data) {
+    const [id] = await this._reserveIds(
+      'roleLastNumber',
+      'R-',
+      1,
+      this._maxNumericId(this._roles, 'R-')
+    );
+    const now  = Date.now();
+    const role = {
+      ...data,
+      id,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this._roles.push(role);
+    await this._fsSet('roles', role.id, role);
+    return role;
+  }
+
+  updateRole(id, data) {
+    const idx = this._roles.findIndex(role => role.id === id);
+    if (idx === -1) return null;
+    this._roles[idx] = {
+      ...this._roles[idx],
+      ...data,
+      updatedAt: Date.now(),
+    };
+    this._fsSet('roles', id, this._roles[idx]);
+    return this._roles[idx];
+  }
+
+  async ensureSystemRoles() {
+    const existingIds = new Set(this._roles.map(role => role.id));
+    const now = Date.now();
+    const missingRoles = RoleSecurity.getSystemRoles().filter(role => !existingIds.has(role.id));
+    for (const role of missingRoles) {
+      const fullRole = {
+        ...role,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this._roles.push(fullRole);
+      await this._fsSet('roles', fullRole.id, fullRole);
+    }
+  }
+
+  getUsers()      { return [...this._users]; }
+  getUserById(id) { return this._users.find(user => user.id === id) ?? null; }
+
+  getUserByEmail(email) {
+    return this.getUserById(RoleSecurity.normalizeEmail(email));
+  }
+
+  async saveUser(data) {
+    const id = RoleSecurity.normalizeEmail(data.email);
+    if (!id) throw new Error('USER_EMAIL_REQUIRED');
+    const existing = this.getUserById(id);
+    const now = Date.now();
+    const user = {
+      ...(existing ?? {}),
+      ...data,
+      id,
+      email: String(data.email ?? existing?.email ?? '').trim(),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    if (existing) {
+      const idx = this._users.findIndex(entry => entry.id === id);
+      this._users[idx] = user;
+    } else {
+      this._users.push(user);
+    }
+    await this._fsSet('users', id, user);
+    return user;
+  }
+
+  updateUser(id, data) {
+    const idx = this._users.findIndex(user => user.id === id);
+    if (idx === -1) return null;
+    this._users[idx] = {
+      ...this._users[idx],
+      ...data,
+      updatedAt: Date.now(),
+    };
+    this._fsSet('users', id, this._users[idx]);
+    return this._users[idx];
+  }
 
   async saveGroup(data) {
     const [id] = await this._reserveIds(
@@ -525,6 +668,160 @@ const State = {
   inventoryViewMode: 'grid',
   encSortKey       : 'updatedAt',
   encSortDir       : 'desc',
+  selectedOrderId  : null,
+  selectedWarehouseOrderId: null,
+  adminTab         : 'users',
+  authUser         : null,
+  appUser          : null,
+  activeRole       : null,
+};
+
+/* ============================================================
+   2B. ROLLEN / BERECHTIGUNGEN
+============================================================ */
+const RoleSecurity = {
+  systemAdminRoleId: 'ROLE_ADMIN',
+
+  permissionGroups: [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      description: 'Erfassung und Startbereich',
+      permissions: [
+        { id: 'dashboard.view', label: 'Dashboard anzeigen', description: 'Dashboard und Erfassung öffnen' },
+        { id: 'articles.create', label: 'Artikel erfassen', description: 'Neue Artikel im Dashboard speichern' },
+        { id: 'groups.create', label: 'Gruppen anlegen', description: 'Neue Gruppen im Dashboard speichern' },
+      ],
+    },
+    {
+      id: 'groups',
+      label: 'Gruppen',
+      description: 'Artikelgruppen und Gruppendetails',
+      permissions: [
+        { id: 'groups.view', label: 'Gruppen anzeigen', description: 'Gruppenübersicht öffnen' },
+        { id: 'groups.edit', label: 'Gruppen bearbeiten', description: 'Gruppendetails ändern' },
+      ],
+    },
+    {
+      id: 'inventory',
+      label: 'Bestand',
+      description: 'Bestandsübersicht und Sammelaktionen',
+      permissions: [
+        { id: 'inventory.view', label: 'Bestand anzeigen', description: 'Bestandsübersicht öffnen' },
+        { id: 'inventory.edit', label: 'Bestand bearbeiten', description: 'Einzelne Bestandsaktionen nutzen' },
+        { id: 'inventory.bulk', label: 'Sammelaktionen nutzen', description: 'Mehrfachauswahl und Sammelverkauf nutzen' },
+      ],
+    },
+    {
+      id: 'sold',
+      label: 'Verkauft',
+      description: 'Verkaufte Artikel und Auswertung',
+      permissions: [
+        { id: 'sold.view', label: 'Verkauft anzeigen', description: 'Verkauft-Ansicht öffnen' },
+      ],
+    },
+    {
+      id: 'encyclopedia',
+      label: 'Enzyklopädie',
+      description: 'Komplette Artikeltabelle',
+      permissions: [
+        { id: 'encyclopedia.view', label: 'Enzyklopädie anzeigen', description: 'Gesamttabelle öffnen' },
+      ],
+    },
+    {
+      id: 'tools',
+      label: 'Tools',
+      description: 'Import, Export und Hilfsfunktionen',
+      permissions: [
+        { id: 'tools.view', label: 'Tools anzeigen', description: 'Toolbereich öffnen' },
+      ],
+    },
+    {
+      id: 'scanner',
+      label: 'Scanner',
+      description: 'QR-Scanner und Umlagerung',
+      permissions: [
+        { id: 'scanner.view', label: 'Scanner anzeigen', description: 'Scannerbereich öffnen' },
+      ],
+    },
+    {
+      id: 'orders',
+      label: 'Aufträge',
+      description: 'Aufträge, Status und Zahlungsübersicht',
+      permissions: [
+        { id: 'orders.view', label: 'Aufträge anzeigen', description: 'Auftragsübersicht öffnen' },
+        { id: 'orders.create', label: 'Aufträge anlegen', description: 'Neue Aufträge speichern' },
+        { id: 'orders.edit', label: 'Aufträge bearbeiten', description: 'Vorhandene Aufträge ändern' },
+        { id: 'orders.release', label: 'Aufträge freigeben', description: 'Aufträge an den Warenausgang übergeben' },
+        { id: 'orders.payment', label: 'Zahlungsstatus ändern', description: 'Zahlungsstatus pflegen' },
+      ],
+    },
+    {
+      id: 'warehouse',
+      label: 'Warenausgang',
+      description: 'Kommissionierung und Scanbereich',
+      permissions: [
+        { id: 'warehouse.view', label: 'Warenausgang anzeigen', description: 'Mitarbeiteransicht öffnen' },
+        { id: 'warehouse.scan', label: 'Artikel scannen', description: 'Artikel im Auftrag buchen' },
+        { id: 'warehouse.ready', label: 'Als bereit markieren', description: 'Auftrag als bereit kennzeichnen' },
+        { id: 'warehouse.handover', label: 'Als übergeben markieren', description: 'Auftrag als übergeben kennzeichnen' },
+      ],
+    },
+    {
+      id: 'adminUsers',
+      label: 'Nutzer',
+      description: 'Nutzer anlegen und verwalten',
+      permissions: [
+        { id: 'admin.users.view', label: 'Nutzerbereich anzeigen', description: 'Nutzerverwaltung öffnen' },
+        { id: 'admin.users.manage', label: 'Nutzer verwalten', description: 'Nutzer anlegen und bearbeiten' },
+      ],
+    },
+    {
+      id: 'adminRoles',
+      label: 'Rollen',
+      description: 'Rollen und Berechtigungen verwalten',
+      permissions: [
+        { id: 'admin.roles.view', label: 'Rollenbereich anzeigen', description: 'Rollenverwaltung öffnen' },
+        { id: 'admin.roles.manage', label: 'Rollen verwalten', description: 'Rollen anlegen und bearbeiten' },
+      ],
+    },
+  ],
+
+  normalizeEmail(email) {
+    return String(email ?? '').trim().toLowerCase();
+  },
+
+  getAllPermissions() {
+    return this.permissionGroups.flatMap(group => group.permissions.map(permission => permission.id));
+  },
+
+  getSystemRoles() {
+    return [
+      {
+        id: this.systemAdminRoleId,
+        name: 'Admin',
+        description: 'Vollzugriff auf das gesamte Warenwirtschaftssystem.',
+        permissions: this.getAllPermissions(),
+        isSystemRole: true,
+        locked: true,
+      },
+    ];
+  },
+
+  getViewPermission(viewId) {
+    return ({
+      dashboard   : 'dashboard.view',
+      groups      : 'groups.view',
+      inventory   : 'inventory.view',
+      orders      : 'orders.view',
+      warehouse   : 'warehouse.view',
+      sold        : 'sold.view',
+      encyclopedia: 'encyclopedia.view',
+      tools       : 'tools.view',
+      scanner     : 'scanner.view',
+      admin       : ['admin.users.view', 'admin.roles.view'],
+    })[viewId] ?? null;
+  },
 };
 
 /* ============================================================
@@ -1080,14 +1377,17 @@ const Modal = {
 ============================================================ */
 const Router = {
 
-  views: ['dashboard', 'groups', 'inventory', 'sold', 'encyclopedia', 'tools', 'scanner'],
+  views: ['dashboard', 'groups', 'inventory', 'orders', 'warehouse', 'sold', 'encyclopedia', 'admin', 'tools', 'scanner'],
 
   titles: {
     dashboard  : 'Dashboard &amp; Erfassung',
     groups     : 'Artikelgruppen',
     inventory  : 'Bestandsübersicht',
+    orders     : 'Aufträge &amp; Status',
+    warehouse  : 'Warenausgang &amp; Scan',
     sold       : 'Verkaufte Artikel',
     encyclopedia: 'Enzyklopädie',
+    admin      : 'Nutzer &amp; Rollen',
     tools      : 'Tools &amp; Import/Export',
     scanner    : '<i class="fa-solid fa-qrcode"></i> QR-Scanner',
   },
@@ -1103,6 +1403,11 @@ const Router = {
 
   navigate(viewId) {
     if (!this.views.includes(viewId)) return;
+    if (typeof AccessControl !== 'undefined' && !AccessControl.canAccessView(viewId)) {
+      const fallbackView = AccessControl.getFirstAvailableView();
+      if (!fallbackView) return;
+      viewId = fallbackView;
+    }
     State.currentView = viewId;
 
     this.views.forEach(v => {
@@ -1122,13 +1427,17 @@ const Router = {
       dashboard  : () => Dashboard.renderStats(),
       groups     : () => Groups.render(),
       inventory  : () => Inventory.render(),
+      orders     : () => Orders.render(),
+      warehouse  : () => Warehouse.render(),
       sold       : () => Sold.render(),
       encyclopedia: () => Encyclopedia.render(),
+      admin      : () => AdminPanel.render(),
       tools      : () => {},
       scanner    : () => QRScanner.start(),
     };
     if (State.currentView !== 'scanner') QRScanner.stop();
     renderers[viewId]?.();
+    if (typeof AppChrome !== 'undefined') AppChrome.update();
   },
 };
 
@@ -1161,6 +1470,170 @@ const Sidebar = {
     this.sidebar.classList.remove('open');
     this.overlay.classList.remove('visible');
     this.hamburger.setAttribute('aria-expanded', 'false');
+  },
+};
+
+/* ============================================================
+   8.1. ZUGRIFF / ROLLEN
+============================================================ */
+const AccessControl = {
+  getCurrentRole() {
+    return State.activeRole;
+  },
+
+  getCurrentUser() {
+    return State.appUser;
+  },
+
+  getPermissionSet() {
+    return new Set(this.getCurrentRole()?.permissions ?? []);
+  },
+
+  can(permission) {
+    if (!permission) return true;
+    const permissions = this.getPermissionSet();
+    return permissions.has(permission);
+  },
+
+  canAny(permissions) {
+    if (!permissions) return true;
+    if (!Array.isArray(permissions)) return this.can(permissions);
+    return permissions.some(permission => this.can(permission));
+  },
+
+  canAccessView(viewId) {
+    const requiredPermission = RoleSecurity.getViewPermission(viewId);
+    return this.canAny(requiredPermission);
+  },
+
+  getFirstAvailableView() {
+    return Router.views.find(viewId => this.canAccessView(viewId)) ?? null;
+  },
+
+  async bootstrapIfNeeded(authUser) {
+    await DB.ensureSystemRoles();
+    if (DB.getUsers().length || !authUser?.email) return;
+    await DB.saveUser({
+      email: authUser.email,
+      displayName: authUser.displayName || authUser.email,
+      roleId: RoleSecurity.systemAdminRoleId,
+      active: true,
+      createdBy: 'system-bootstrap',
+    });
+  },
+
+  async syncAuthUser(authUser) {
+    if (!authUser?.email) {
+      return {
+        allowed: false,
+        message: 'Für dieses Google-Konto konnte keine E-Mail-Adresse ermittelt werden.',
+      };
+    }
+
+    await this.bootstrapIfNeeded(authUser);
+
+    const existingUser = DB.getUserByEmail(authUser.email);
+    if (!existingUser) {
+      return {
+        allowed: false,
+        message: 'Für diese E-Mail-Adresse ist noch kein Nutzer angelegt.',
+      };
+    }
+
+    if (existingUser.active === false) {
+      return {
+        allowed: false,
+        message: 'Dieser Nutzer wurde deaktiviert und hat aktuell keinen Zugriff.',
+      };
+    }
+
+    const role = DB.getRoleById(existingUser.roleId);
+    if (!role) {
+      return {
+        allowed: false,
+        message: 'Dem Nutzer ist keine gültige Rolle zugewiesen.',
+      };
+    }
+
+    const syncedUser = await DB.saveUser({
+      ...existingUser,
+      email: existingUser.email || authUser.email,
+      displayName: existingUser.displayName || authUser.displayName || authUser.email,
+      uid: authUser.uid,
+      photoURL: authUser.photoURL || existingUser.photoURL || '',
+      lastLoginAt: Date.now(),
+      active: true,
+    });
+
+    this.applySession(authUser, syncedUser, role);
+    return { allowed: true };
+  },
+
+  applySession(authUser, appUser, role) {
+    State.authUser = authUser;
+    State.appUser = appUser;
+    State.activeRole = role;
+    this.refreshNavigation();
+    this.refreshBodyState();
+    if (!this.canAccessView(State.currentView)) {
+      const fallbackView = this.getFirstAvailableView();
+      if (fallbackView) Router.navigate(fallbackView);
+    } else if (typeof AppChrome !== 'undefined') {
+      AppChrome.update();
+    }
+  },
+
+  clearSession() {
+    State.authUser = null;
+    State.appUser = null;
+    State.activeRole = null;
+    this.refreshNavigation();
+    this.refreshBodyState();
+  },
+
+  refreshSessionFromStore() {
+    if (!State.appUser?.id) return;
+    const liveUser = DB.getUserById(State.appUser.id);
+    if (liveUser) State.appUser = liveUser;
+    const liveRole = DB.getRoleById((liveUser ?? State.appUser)?.roleId);
+    if (liveRole) State.activeRole = liveRole;
+  },
+
+  refreshBodyState() {
+    document.body.classList.toggle(
+      'permission-warehouse',
+      this.can('warehouse.view') && !this.can('dashboard.view')
+    );
+  },
+
+  refreshNavigation() {
+    document.querySelectorAll('[data-view]').forEach(link => {
+      const isVisible = this.canAccessView(link.dataset.view);
+      link.classList.toggle('hidden', !isVisible);
+    });
+  },
+};
+
+/* ============================================================
+   8.2. APP-CHROME
+============================================================ */
+const AppChrome = {
+  init() {
+    const newArticleBtn = document.getElementById('topbar-new-article-btn');
+    if (newArticleBtn) {
+      newArticleBtn.addEventListener('click', () => {
+        if (!AccessControl.can('articles.create')) return;
+        Router.navigate('dashboard');
+        Dashboard.resetArticleForm();
+      });
+    }
+  },
+
+  update() {
+    const newArticleBtn = document.getElementById('topbar-new-article-btn');
+    if (!newArticleBtn) return;
+    const canShow = State.currentView === 'dashboard' && AccessControl.can('articles.create');
+    newArticleBtn.classList.toggle('hidden', !canShow);
   },
 };
 
@@ -6494,6 +6967,1286 @@ const QRScanner = {
   },
 };
 
+const OrderLogic = {
+  NEW_ORDER_ID: '__new_order__',
+
+  createEmptyOrder() {
+    return {
+      customerName: '',
+      customerPhone: '',
+      orderDate: Utils.formatDateInput(Date.now()),
+      fulfillmentType: 'Abholung',
+      orderStatus: 'Angelegt',
+      warehouseStatus: 'Nicht freigegeben',
+      paymentStatus: 'Offen',
+      pickupDate: '',
+      notes: '',
+      positions: [],
+    };
+  },
+
+  getOrderStatuses() {
+    return ['Angelegt', 'Freigegeben', 'Abgeschlossen', 'Storniert'];
+  },
+
+  getWarehouseStatuses() {
+    return ['Nicht freigegeben', 'Offen', 'In Bearbeitung', 'Vollständig', 'Bereit zur Abholung', 'Übergeben'];
+  },
+
+  getPaymentStatuses() {
+    return ['Offen', 'Teilbezahlt', 'Bezahlt'];
+  },
+
+  getGroupLabel(groupId) {
+    const group = DB.getGroupById(groupId);
+    if (!group) return groupId;
+    return Utils.groupDisplayName(group, DB.getArticlesByGroup(groupId), group.name || group.id) || group.id;
+  },
+
+  getAvailableGroupQuantity(groupId) {
+    return DB.getArticlesByGroup(groupId)
+      .filter(article => !['Entsorgt', 'Verkauft'].includes(Utils.normalizeStatus(article.status)))
+      .length;
+  },
+
+  normalizePositions(positions = []) {
+    const merged = new Map();
+
+    positions.forEach((position, index) => {
+      const groupId = String(position?.groupId ?? '').trim();
+      const quantity = Math.max(1, parseInt(position?.quantity, 10) || 1);
+      if (!groupId) return;
+
+      const scannedArticleIds = Array.from(new Set(
+        (position?.scannedArticleIds ?? [])
+          .map(value => String(value ?? '').trim())
+          .filter(Boolean)
+      )).slice(0, quantity);
+
+      if (!merged.has(groupId)) {
+        merged.set(groupId, {
+          positionId: String(position?.positionId ?? `POS-${index + 1}`),
+          groupId,
+          quantity,
+          scannedArticleIds,
+        });
+        return;
+      }
+
+      const existing = merged.get(groupId);
+      existing.quantity += quantity;
+      existing.scannedArticleIds = Array.from(new Set([
+        ...existing.scannedArticleIds,
+        ...scannedArticleIds,
+      ])).slice(0, existing.quantity);
+    });
+
+    return Array.from(merged.values()).map((position, index) => ({
+      positionId: position.positionId || `POS-${index + 1}`,
+      groupId: position.groupId,
+      quantity: Math.max(1, parseInt(position.quantity, 10) || 1),
+      scannedArticleIds: Array.from(new Set(position.scannedArticleIds ?? [])).slice(0, Math.max(1, parseInt(position.quantity, 10) || 1)),
+    }));
+  },
+
+  getProgress(order) {
+    const positions = this.normalizePositions(order?.positions ?? []);
+    const total = positions.reduce((sum, position) => sum + (parseInt(position.quantity, 10) || 0), 0);
+    const picked = positions.reduce(
+      (sum, position) => sum + Math.min(position.scannedArticleIds?.length ?? 0, parseInt(position.quantity, 10) || 0),
+      0
+    );
+    const percent = total ? Math.round((picked / total) * 100) : 0;
+    return { total, picked, percent };
+  },
+
+  getComputedWarehouseStatus(order) {
+    const { total, picked } = this.getProgress(order);
+    const orderStatus = String(order?.orderStatus ?? 'Angelegt');
+    const currentStatus = String(order?.warehouseStatus ?? 'Nicht freigegeben');
+
+    if (orderStatus === 'Storniert') return 'Nicht freigegeben';
+    if (orderStatus === 'Angelegt') return 'Nicht freigegeben';
+    if (currentStatus === 'Übergeben') return 'Übergeben';
+    if (currentStatus === 'Bereit zur Abholung' && total > 0 && picked >= total) return 'Bereit zur Abholung';
+    if (!total) return orderStatus === 'Freigegeben' ? 'Offen' : 'Nicht freigegeben';
+    if (picked >= total) return 'Vollständig';
+    if (picked > 0) return 'In Bearbeitung';
+    return orderStatus === 'Freigegeben' ? 'Offen' : 'Nicht freigegeben';
+  },
+
+  decorate(order) {
+    const positions = this.normalizePositions(order?.positions ?? []);
+    const paymentStatus = this.getPaymentStatuses().includes(order?.paymentStatus) ? order.paymentStatus : 'Offen';
+    let orderStatus = this.getOrderStatuses().includes(order?.orderStatus) ? order.orderStatus : 'Angelegt';
+    let warehouseStatus = this.getWarehouseStatuses().includes(order?.warehouseStatus)
+      ? order.warehouseStatus
+      : 'Nicht freigegeben';
+
+    warehouseStatus = this.getComputedWarehouseStatus({ ...order, positions, warehouseStatus, orderStatus });
+    if (warehouseStatus === 'Übergeben' && paymentStatus === 'Bezahlt' && orderStatus !== 'Storniert') {
+      orderStatus = 'Abgeschlossen';
+    }
+
+    return {
+      ...this.createEmptyOrder(),
+      ...order,
+      orderStatus,
+      warehouseStatus,
+      paymentStatus,
+      positions,
+      progress: this.getProgress({ positions }),
+    };
+  },
+
+  prepareForSave(order) {
+    const decorated = this.decorate(order);
+    return {
+      customerName: String(decorated.customerName ?? '').trim(),
+      customerPhone: String(decorated.customerPhone ?? '').trim(),
+      orderDate: decorated.orderDate || Utils.formatDateInput(Date.now()),
+      fulfillmentType: decorated.fulfillmentType === 'Lieferung' ? 'Lieferung' : 'Abholung',
+      orderStatus: decorated.orderStatus,
+      warehouseStatus: decorated.warehouseStatus,
+      paymentStatus: decorated.paymentStatus,
+      pickupDate: decorated.pickupDate || '',
+      notes: String(decorated.notes ?? '').trim(),
+      positions: decorated.positions,
+    };
+  },
+
+  matchesSearch(order, query) {
+    if (!query) return true;
+    const lowerQuery = query.toLowerCase();
+    return [
+      order.id,
+      order.customerName,
+      order.customerPhone,
+      order.notes,
+    ].some(value => String(value ?? '').toLowerCase().includes(lowerQuery));
+  },
+
+  isVisibleInWarehouse(order) {
+    if (order.orderStatus === 'Storniert') return false;
+    return order.orderStatus === 'Freigegeben'
+      || ['Offen', 'In Bearbeitung', 'Vollständig', 'Bereit zur Abholung', 'Übergeben'].includes(order.warehouseStatus);
+  },
+
+  getStatusTone(status) {
+    if (['Abgeschlossen', 'Vollständig', 'Bereit zur Abholung', 'Bezahlt', 'Übergeben', 'Aktiv'].includes(status)) return 'success';
+    if (['Freigegeben', 'In Bearbeitung', 'Teilbezahlt', 'Lieferung', 'Abholung'].includes(status)) return 'info';
+    if (['Offen', 'Nicht freigegeben', 'Angelegt', 'Geschützt', 'Inaktiv'].includes(status)) return 'warning';
+    if (status === 'Storniert') return 'danger';
+    return 'neutral';
+  },
+
+  getStatusIcon(status) {
+    return ({
+      Angelegt: 'fa-file-circle-plus',
+      Freigegeben: 'fa-share',
+      Abgeschlossen: 'fa-circle-check',
+      Storniert: 'fa-ban',
+      'Nicht freigegeben': 'fa-lock',
+      Offen: 'fa-hourglass-half',
+      'In Bearbeitung': 'fa-bars-progress',
+      Vollständig: 'fa-box-open',
+      'Bereit zur Abholung': 'fa-truck-ramp-box',
+      Übergeben: 'fa-handshake',
+      Teilbezahlt: 'fa-money-bill-wave',
+      Bezahlt: 'fa-credit-card',
+      Abholung: 'fa-truck-ramp-box',
+      Lieferung: 'fa-truck',
+      Aktiv: 'fa-user-check',
+      Inaktiv: 'fa-user-slash',
+      Geschützt: 'fa-shield-halved',
+    })[status] ?? 'fa-circle';
+  },
+
+  renderStatusPill(label) {
+    const tone = this.getStatusTone(label);
+    const icon = this.getStatusIcon(label);
+    return `<span class="status-pill status-pill--${tone}">
+      <i class="fa-solid ${icon}"></i>
+      ${Utils.escHtml(label)}
+    </span>`;
+  },
+};
+
+const Orders = {
+  NEW_ID: OrderLogic.NEW_ORDER_ID,
+
+  init() {
+    document.getElementById('orders-search')
+      .addEventListener('input', () => this.render());
+    document.getElementById('orders-filter-order-status')
+      .addEventListener('change', () => this.render());
+    document.getElementById('orders-filter-warehouse-status')
+      .addEventListener('change', () => this.render());
+    document.getElementById('orders-filter-payment-status')
+      .addEventListener('change', () => this.render());
+    document.getElementById('btn-order-new')
+      .addEventListener('click', () => this.openNew());
+    document.getElementById('btn-order-add-position')
+      .addEventListener('click', () => {
+        this.appendPositionRow();
+        this.updatePositionSummary();
+      });
+    document.getElementById('btn-cancel-order')
+      .addEventListener('click', () => this.resetDetailState());
+    document.getElementById('btn-order-release')
+      .addEventListener('click', () => this.releaseSelectedOrder());
+    document.getElementById('btn-order-set-ready')
+      .addEventListener('click', () => this.markReady());
+    document.getElementById('btn-order-set-handed-over')
+      .addEventListener('click', () => this.markHandedOver());
+    document.getElementById('order-form')
+      .addEventListener('submit', event => {
+        event.preventDefault();
+        this.save();
+      });
+
+    const positionsEditor = document.getElementById('order-positions-editor');
+    positionsEditor.addEventListener('click', event => {
+      const removeButton = event.target.closest('[data-remove-order-position]');
+      if (!removeButton) return;
+      removeButton.closest('.order-position-row')?.remove();
+      if (!positionsEditor.children.length) this.appendPositionRow();
+      this.updatePositionSummary();
+    });
+    positionsEditor.addEventListener('change', event => {
+      const row = event.target.closest('.order-position-row');
+      if (!row) return;
+      if (event.target.classList.contains('order-position-group')) {
+        const originalGroup = row.dataset.originalGroupId || '';
+        if (event.target.value !== originalGroup) row.dataset.scannedIds = '[]';
+        row.dataset.originalGroupId = event.target.value;
+      }
+      this.updatePositionRowMeta(row);
+      this.updatePositionSummary();
+    });
+    positionsEditor.addEventListener('input', event => {
+      if (!event.target.classList.contains('order-position-quantity')) return;
+      this.updatePositionRowMeta(event.target.closest('.order-position-row'));
+      this.updatePositionSummary();
+    });
+  },
+
+  getAllOrders() {
+    return DB.getOrders()
+      .map(order => OrderLogic.decorate(order))
+      .sort((left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0));
+  },
+
+  getFilteredOrders() {
+    const search = document.getElementById('orders-search').value.trim();
+    const orderStatus = document.getElementById('orders-filter-order-status').value;
+    const warehouseStatus = document.getElementById('orders-filter-warehouse-status').value;
+    const paymentStatus = document.getElementById('orders-filter-payment-status').value;
+
+    return this.getAllOrders().filter(order =>
+      OrderLogic.matchesSearch(order, search)
+      && (!orderStatus || order.orderStatus === orderStatus)
+      && (!warehouseStatus || order.warehouseStatus === warehouseStatus)
+      && (!paymentStatus || order.paymentStatus === paymentStatus)
+    );
+  },
+
+  render() {
+    if (!AccessControl.can('orders.view')) return;
+    document.getElementById('btn-order-new').classList.toggle('hidden', !AccessControl.can('orders.create'));
+    this.renderStats();
+    this.renderList();
+    this.renderDetail();
+  },
+
+  renderStats() {
+    const orders = this.getAllOrders();
+    document.getElementById('orders-stat-total').textContent = String(orders.length);
+    document.getElementById('orders-stat-open').textContent = String(
+      orders.filter(order => ['Offen', 'In Bearbeitung', 'Vollständig', 'Bereit zur Abholung'].includes(order.warehouseStatus)).length
+    );
+    document.getElementById('orders-stat-paid').textContent = String(
+      orders.filter(order => order.paymentStatus === 'Bezahlt').length
+    );
+  },
+
+  renderList() {
+    const container = document.getElementById('orders-list');
+    const orders = this.getFilteredOrders();
+
+    if (!orders.length) {
+      container.innerHTML = `<div class="empty-state">
+        <i class="fa-solid fa-clipboard-list"></i>
+        <p>Noch keine passenden Aufträge vorhanden.</p>
+      </div>`;
+      return;
+    }
+
+    container.className = 'order-card-list';
+    container.innerHTML = orders.map(order => {
+      const isActive = State.selectedOrderId === order.id ? ' is-active' : '';
+      return `<article class="order-card${isActive}" data-order-id="${Utils.escHtml(order.id)}">
+        <div class="order-card__top">
+          <div>
+            <span class="order-card__eyebrow">${Utils.escHtml(order.id)}</span>
+            <div class="order-card__title">${Utils.escHtml(order.customerName || 'Ohne Namen')}</div>
+            <div class="order-card__meta">
+              <span><i class="fa-solid fa-calendar-days"></i> ${Utils.escHtml(order.orderDate || '-')}</span>
+              <span><i class="fa-solid fa-truck-ramp-box"></i> ${Utils.escHtml(order.fulfillmentType || 'Abholung')}</span>
+            </div>
+          </div>
+        </div>
+        <div class="order-card__footer">
+          <div class="order-card__badges">
+            ${OrderLogic.renderStatusPill(order.orderStatus)}
+            ${OrderLogic.renderStatusPill(order.warehouseStatus)}
+            ${OrderLogic.renderStatusPill(order.paymentStatus)}
+          </div>
+          <div class="order-card__progress">${order.progress.picked} von ${order.progress.total}</div>
+        </div>
+      </article>`;
+    }).join('');
+
+    container.querySelectorAll('[data-order-id]').forEach(card => {
+      card.addEventListener('click', () => this.open(card.dataset.orderId));
+    });
+  },
+
+  open(orderId) {
+    State.selectedOrderId = orderId;
+    this.renderDetail();
+    this.renderList();
+  },
+
+  openNew() {
+    if (!AccessControl.can('orders.create')) {
+      Toast.warning('Für neue Aufträge fehlt die Berechtigung.');
+      return;
+    }
+    State.selectedOrderId = this.NEW_ID;
+    this.renderDetail();
+    this.renderList();
+  },
+
+  getSelectedOrder() {
+    if (!State.selectedOrderId || State.selectedOrderId === this.NEW_ID) return null;
+    return OrderLogic.decorate(DB.getOrderById(State.selectedOrderId));
+  },
+
+  renderDetail() {
+    const emptyState = document.getElementById('orders-empty-state');
+    const shell = document.getElementById('orders-detail-shell');
+    const selectedOrder = this.getSelectedOrder();
+    const isNewOrder = State.selectedOrderId === this.NEW_ID;
+
+    if (!selectedOrder && !isNewOrder) {
+      emptyState.classList.remove('hidden');
+      shell.classList.add('hidden');
+      return;
+    }
+
+    emptyState.classList.add('hidden');
+    shell.classList.remove('hidden');
+
+    const order = selectedOrder ?? OrderLogic.createEmptyOrder();
+    document.getElementById('order-detail-id').textContent = selectedOrder?.id ?? 'Neuer Auftrag';
+    document.getElementById('order-detail-customer-display').textContent = order.customerName || 'Neuer Auftrag';
+    document.getElementById('order-detail-status-badges').innerHTML = [
+      OrderLogic.renderStatusPill(order.orderStatus),
+      OrderLogic.renderStatusPill(order.warehouseStatus),
+      OrderLogic.renderStatusPill(order.paymentStatus),
+    ].join('');
+
+    document.getElementById('order-edit-id').value = selectedOrder?.id ?? '';
+    document.getElementById('order-customer-name').value = order.customerName || '';
+    document.getElementById('order-customer-phone').value = order.customerPhone || '';
+    document.getElementById('order-date').value = order.orderDate || Utils.formatDateInput(Date.now());
+    document.getElementById('order-fulfillment-type').value = order.fulfillmentType || 'Abholung';
+    document.getElementById('order-status').value = order.orderStatus || 'Angelegt';
+    document.getElementById('order-warehouse-status').value = order.warehouseStatus || 'Nicht freigegeben';
+    document.getElementById('order-payment-status').value = order.paymentStatus || 'Offen';
+    document.getElementById('order-pickup-date').value = order.pickupDate || '';
+    document.getElementById('order-notes').value = order.notes || '';
+
+    this.renderPositionRows(order.positions);
+    this.updatePositionSummary();
+    this.updateActionButtons(order);
+
+    const canModify = selectedOrder ? AccessControl.can('orders.edit') : AccessControl.can('orders.create');
+    document.querySelectorAll('#order-form input, #order-form select, #order-form textarea').forEach(field => {
+      if (field.id === 'order-edit-id') return;
+      field.disabled = !canModify;
+    });
+    document.querySelectorAll('#order-form [data-remove-order-position], #btn-order-add-position').forEach(button => {
+      button.disabled = !canModify;
+    });
+  },
+
+  updateActionButtons(order) {
+    const canRelease = AccessControl.can('orders.release');
+    const canEditOrders = AccessControl.can('orders.edit');
+    const canPayment = AccessControl.can('orders.payment');
+    const isPersistedOrder = !!document.getElementById('order-edit-id').value.trim();
+    document.getElementById('btn-order-release').disabled = !canRelease || !isPersistedOrder || !order || order.orderStatus === 'Freigegeben';
+    document.getElementById('btn-order-set-ready').disabled = !canEditOrders || !isPersistedOrder || !order || order.progress.total === 0 || order.progress.picked < order.progress.total;
+    document.getElementById('btn-order-set-handed-over').disabled = !canPayment || !isPersistedOrder || !order || order.paymentStatus !== 'Bezahlt';
+  },
+
+  getGroupOptionsHtml(selectedValue = '') {
+    const groups = DB.getGroups()
+      .filter(group => group.status !== 'Entsorgt')
+      .sort((left, right) => String(left.name ?? '').localeCompare(String(right.name ?? '')));
+
+    return [
+      `<option value="">Bitte Gruppe wählen</option>`,
+      ...groups.map(group => `
+        <option value="${Utils.escHtml(group.id)}"${group.id === selectedValue ? ' selected' : ''}>
+          ${Utils.escHtml(group.id)} · ${Utils.escHtml(OrderLogic.getGroupLabel(group.id))}
+        </option>`),
+    ].join('');
+  },
+
+  positionRowHtml(position = {}) {
+    const quantity = Math.max(1, parseInt(position.quantity, 10) || 1);
+    const scannedArticleIds = Array.isArray(position.scannedArticleIds) ? position.scannedArticleIds : [];
+    const groupId = String(position.groupId ?? '').trim();
+    const available = groupId ? OrderLogic.getAvailableGroupQuantity(groupId) : 0;
+
+    return `<div class="order-position-row" data-scanned-ids="${Utils.escHtml(JSON.stringify(scannedArticleIds))}" data-original-group-id="${Utils.escHtml(groupId)}">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Artikelgruppe <span class="required">*</span></label>
+        <select class="order-position-group">
+          ${this.getGroupOptionsHtml(groupId)}
+        </select>
+        <div class="order-position-meta">Verfügbar im Bestand: ${available}</div>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Stückzahl</label>
+        <input type="number" class="order-position-quantity" value="${quantity}" min="1" max="999"/>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Fortschritt</label>
+        <div class="order-position-meta">${Math.min(scannedArticleIds.length, quantity)} von ${quantity} gescannt</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button" data-remove-order-position>
+        <i class="fa-solid fa-trash-can"></i>
+        Entfernen
+      </button>
+    </div>`;
+  },
+
+  renderPositionRows(positions = []) {
+    const container = document.getElementById('order-positions-editor');
+    const safePositions = positions.length ? positions : [{}];
+    container.innerHTML = safePositions.map(position => this.positionRowHtml(position)).join('');
+  },
+
+  appendPositionRow(position = {}) {
+    const container = document.getElementById('order-positions-editor');
+    container.insertAdjacentHTML('beforeend', this.positionRowHtml(position));
+  },
+
+  updatePositionRowMeta(row) {
+    if (!row) return;
+    const groupId = row.querySelector('.order-position-group')?.value || '';
+    const quantity = Math.max(1, parseInt(row.querySelector('.order-position-quantity')?.value, 10) || 1);
+    const scannedIds = JSON.parse(row.dataset.scannedIds || '[]');
+    const metaNodes = row.querySelectorAll('.order-position-meta');
+    if (metaNodes[0]) metaNodes[0].textContent = `Verfügbar im Bestand: ${groupId ? OrderLogic.getAvailableGroupQuantity(groupId) : 0}`;
+    if (metaNodes[1]) metaNodes[1].textContent = `${Math.min(scannedIds.length, quantity)} von ${quantity} gescannt`;
+  },
+
+  collectPositionsFromEditor() {
+    return Array.from(document.querySelectorAll('#order-positions-editor .order-position-row'))
+      .map(row => {
+        const groupId = row.querySelector('.order-position-group')?.value || '';
+        const quantity = Math.max(1, parseInt(row.querySelector('.order-position-quantity')?.value, 10) || 1);
+        const scannedArticleIds = JSON.parse(row.dataset.scannedIds || '[]');
+        return {
+          groupId,
+          quantity,
+          scannedArticleIds: Array.isArray(scannedArticleIds) ? scannedArticleIds : [],
+        };
+      })
+      .filter(position => position.groupId);
+  },
+
+  updatePositionSummary() {
+    const positions = OrderLogic.normalizePositions(this.collectPositionsFromEditor());
+    const progress = OrderLogic.getProgress({ positions });
+    document.getElementById('order-position-summary').textContent = positions.length
+      ? `${positions.length} Positionen · ${progress.picked} von ${progress.total} Stück aktuell erfasst`
+      : 'Noch keine Positionen gewählt.';
+  },
+
+  async save() {
+    const orderId = document.getElementById('order-edit-id').value.trim();
+    const isExisting = !!orderId;
+    const permission = isExisting ? 'orders.edit' : 'orders.create';
+    if (!AccessControl.can(permission)) {
+      Toast.warning('Für diese Aktion fehlt die Berechtigung.');
+      return;
+    }
+
+    const positions = this.collectPositionsFromEditor();
+    if (!document.getElementById('order-customer-name').value.trim()) {
+      Toast.error('Bitte einen Kundennamen eingeben.');
+      document.getElementById('order-customer-name').focus();
+      return;
+    }
+    if (!positions.length) {
+      Toast.error('Bitte mindestens eine Auftragsposition anlegen.');
+      return;
+    }
+
+    const payload = OrderLogic.prepareForSave({
+      customerName: document.getElementById('order-customer-name').value,
+      customerPhone: document.getElementById('order-customer-phone').value,
+      orderDate: document.getElementById('order-date').value,
+      fulfillmentType: document.getElementById('order-fulfillment-type').value,
+      orderStatus: document.getElementById('order-status').value,
+      warehouseStatus: document.getElementById('order-warehouse-status').value,
+      paymentStatus: document.getElementById('order-payment-status').value,
+      pickupDate: document.getElementById('order-pickup-date').value,
+      notes: document.getElementById('order-notes').value,
+      positions,
+    });
+
+    if (isExisting) {
+      DB.updateOrder(orderId, payload);
+      State.selectedOrderId = orderId;
+      Toast.success(`Auftrag ${orderId} wurde aktualisiert.`);
+    } else {
+      const savedOrder = await DB.saveOrder(payload);
+      State.selectedOrderId = savedOrder.id;
+      Toast.success(`Auftrag ${savedOrder.id} wurde gespeichert.`);
+    }
+
+    this.render();
+    Warehouse.render();
+  },
+
+  resetDetailState() {
+    State.selectedOrderId = null;
+    document.getElementById('order-form').reset();
+    this.render();
+  },
+
+  releaseSelectedOrder() {
+    const selectedOrder = this.getSelectedOrder();
+    if (!selectedOrder) return;
+    if (!AccessControl.can('orders.release')) {
+      Toast.warning('Für die Freigabe fehlt die Berechtigung.');
+      return;
+    }
+
+    const updated = OrderLogic.prepareForSave({
+      ...selectedOrder,
+      orderStatus: 'Freigegeben',
+      warehouseStatus: 'Offen',
+    });
+    DB.updateOrder(selectedOrder.id, updated);
+    Toast.success(`Auftrag ${selectedOrder.id} wurde für den Warenausgang freigegeben.`);
+    this.render();
+    Warehouse.render();
+  },
+
+  markReady() {
+    const selectedOrder = this.getSelectedOrder();
+    if (!selectedOrder) return;
+    if (!AccessControl.can('orders.edit')) {
+      Toast.warning('Für diese Aktion fehlt die Berechtigung.');
+      return;
+    }
+    if (selectedOrder.progress.total === 0 || selectedOrder.progress.picked < selectedOrder.progress.total) {
+      Toast.warning('Der Auftrag ist noch nicht vollständig gepickt.');
+      return;
+    }
+    DB.updateOrder(selectedOrder.id, OrderLogic.prepareForSave({
+      ...selectedOrder,
+      warehouseStatus: 'Bereit zur Abholung',
+      orderStatus: 'Freigegeben',
+    }));
+    Toast.success(`Auftrag ${selectedOrder.id} wurde als bereit markiert.`);
+    this.render();
+    Warehouse.render();
+  },
+
+  markHandedOver() {
+    const selectedOrder = this.getSelectedOrder();
+    if (!selectedOrder) return;
+    if (!AccessControl.can('orders.payment')) {
+      Toast.warning('Für diese Aktion fehlt die Berechtigung.');
+      return;
+    }
+    if (selectedOrder.paymentStatus !== 'Bezahlt') {
+      Toast.warning('Vor der Übergabe muss der Zahlungsstatus auf "Bezahlt" stehen.');
+      return;
+    }
+    DB.updateOrder(selectedOrder.id, OrderLogic.prepareForSave({
+      ...selectedOrder,
+      warehouseStatus: 'Übergeben',
+      orderStatus: 'Abgeschlossen',
+    }));
+    Toast.success(`Auftrag ${selectedOrder.id} wurde als übergeben abgeschlossen.`);
+    this.render();
+    Warehouse.render();
+  },
+};
+
+const Warehouse = {
+  init() {
+    document.getElementById('warehouse-search')
+      .addEventListener('input', () => this.render());
+    document.getElementById('warehouse-filter-status')
+      .addEventListener('change', () => this.render());
+    document.getElementById('warehouse-show-finished')
+      .addEventListener('change', () => this.render());
+    document.getElementById('btn-warehouse-scan')
+      .addEventListener('click', () => this.handleScan());
+    document.getElementById('warehouse-scan-input')
+      .addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          this.handleScan();
+        }
+      });
+    document.getElementById('btn-warehouse-mark-ready')
+      .addEventListener('click', () => this.markReady());
+    document.getElementById('btn-warehouse-mark-handed-over')
+      .addEventListener('click', () => this.markHandedOver());
+  },
+
+  getOrders() {
+    return DB.getOrders()
+      .map(order => OrderLogic.decorate(order))
+      .filter(order => OrderLogic.isVisibleInWarehouse(order))
+      .sort((left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0));
+  },
+
+  getFilteredOrders() {
+    const query = document.getElementById('warehouse-search').value.trim();
+    const status = document.getElementById('warehouse-filter-status').value;
+    const showFinished = document.getElementById('warehouse-show-finished').checked;
+
+    return this.getOrders().filter(order => {
+      if (!showFinished && order.warehouseStatus === 'Übergeben') return false;
+      return OrderLogic.matchesSearch(order, query)
+        && (!status || order.warehouseStatus === status);
+    });
+  },
+
+  render() {
+    if (!AccessControl.can('warehouse.view')) return;
+    this.renderStats();
+    this.renderList();
+    this.renderDetail();
+  },
+
+  renderStats() {
+    const orders = this.getOrders();
+    document.getElementById('warehouse-stat-open').textContent = String(
+      orders.filter(order => order.warehouseStatus === 'Offen').length
+    );
+    document.getElementById('warehouse-stat-progress').textContent = String(
+      orders.filter(order => order.warehouseStatus === 'In Bearbeitung').length
+    );
+    document.getElementById('warehouse-stat-complete').textContent = String(
+      orders.filter(order => ['Vollständig', 'Bereit zur Abholung'].includes(order.warehouseStatus)).length
+    );
+  },
+
+  renderList() {
+    const container = document.getElementById('warehouse-orders-list');
+    const orders = this.getFilteredOrders();
+
+    if (!orders.length) {
+      State.selectedWarehouseOrderId = null;
+      container.innerHTML = `<div class="empty-state">
+        <i class="fa-solid fa-warehouse"></i>
+        <p>Aktuell gibt es keine passenden Aufträge im Warenausgang.</p>
+      </div>`;
+      return;
+    }
+
+    if (!orders.some(order => order.id === State.selectedWarehouseOrderId)) {
+      State.selectedWarehouseOrderId = orders[0].id;
+    }
+
+    container.className = 'warehouse-order-list';
+    container.innerHTML = orders.map(order => {
+      const isActive = State.selectedWarehouseOrderId === order.id ? ' is-active' : '';
+      return `<article class="warehouse-order-card${isActive}" data-warehouse-order-id="${Utils.escHtml(order.id)}">
+        <div class="warehouse-order-card__top">
+          <div>
+            <span class="order-card__eyebrow">${Utils.escHtml(order.id)}</span>
+            <div class="warehouse-order-card__title">${Utils.escHtml(order.customerName || 'Ohne Namen')}</div>
+            <div class="warehouse-order-card__meta">
+              <span><i class="fa-solid fa-truck-ramp-box"></i> ${Utils.escHtml(order.fulfillmentType || 'Abholung')}</span>
+              <span><i class="fa-solid fa-calendar-days"></i> ${Utils.escHtml(order.pickupDate || order.orderDate || '-')}</span>
+            </div>
+          </div>
+        </div>
+        <div class="warehouse-order-card__footer">
+          <div class="order-card__badges">
+            ${OrderLogic.renderStatusPill(order.warehouseStatus)}
+          </div>
+          <div class="warehouse-order-card__progress">${order.progress.picked} von ${order.progress.total}</div>
+        </div>
+      </article>`;
+    }).join('');
+
+    container.querySelectorAll('[data-warehouse-order-id]').forEach(card => {
+      card.addEventListener('click', () => {
+        State.selectedWarehouseOrderId = card.dataset.warehouseOrderId;
+        this.render();
+      });
+    });
+  },
+
+  getSelectedOrder() {
+    return OrderLogic.decorate(DB.getOrderById(State.selectedWarehouseOrderId));
+  },
+
+  renderDetail() {
+    const emptyState = document.getElementById('warehouse-empty-state');
+    const shell = document.getElementById('warehouse-detail-shell');
+    const order = this.getSelectedOrder();
+
+    if (!order?.id) {
+      emptyState.classList.remove('hidden');
+      shell.classList.add('hidden');
+      return;
+    }
+
+    emptyState.classList.add('hidden');
+    shell.classList.remove('hidden');
+
+    document.getElementById('warehouse-detail-order-id').textContent = order.id;
+    document.getElementById('warehouse-detail-customer').textContent = order.customerName || 'Ohne Namen';
+    document.getElementById('warehouse-detail-statuses').innerHTML = [
+      OrderLogic.renderStatusPill(order.warehouseStatus),
+      OrderLogic.renderStatusPill(order.paymentStatus),
+      OrderLogic.renderStatusPill(order.fulfillmentType),
+    ].join('');
+    document.getElementById('warehouse-detail-progress-label').textContent = `${order.progress.picked} von ${order.progress.total}`;
+    document.getElementById('warehouse-detail-progress-fill').style.width = `${order.progress.percent}%`;
+
+    document.getElementById('warehouse-positions-list').innerHTML = order.positions.map(position => {
+      const picked = Math.min(position.scannedArticleIds?.length ?? 0, parseInt(position.quantity, 10) || 0);
+      const quantity = parseInt(position.quantity, 10) || 0;
+      const percent = quantity ? Math.round((picked / quantity) * 100) : 0;
+      const isComplete = picked >= quantity;
+      return `<article class="warehouse-position-card${isComplete ? ' is-complete' : ''}">
+        <div class="warehouse-position-card__header">
+          <div>
+            <div class="warehouse-position-card__title">${Utils.escHtml(OrderLogic.getGroupLabel(position.groupId))}</div>
+            <div class="warehouse-position-card__qty">${Utils.escHtml(position.groupId)} · ${quantity} Stück gesucht</div>
+          </div>
+          ${OrderLogic.renderStatusPill(isComplete ? 'Vollständig' : (picked > 0 ? 'In Bearbeitung' : 'Offen'))}
+        </div>
+        <div class="warehouse-position-card__progress">
+          <div class="warehouse-position-card__progress-label">
+            <span>${picked} von ${quantity}</span>
+            <span>${percent}%</span>
+          </div>
+          <div class="warehouse-position-card__progress-bar">
+            <span style="width:${percent}%"></span>
+          </div>
+        </div>
+      </article>`;
+    }).join('');
+
+    document.getElementById('btn-warehouse-mark-ready').disabled =
+      !AccessControl.can('warehouse.ready')
+      || order.progress.total === 0
+      || order.progress.picked < order.progress.total;
+    document.getElementById('btn-warehouse-mark-handed-over').disabled =
+      !AccessControl.can('warehouse.handover')
+      || order.paymentStatus !== 'Bezahlt';
+    document.getElementById('warehouse-scan-input').disabled = !AccessControl.can('warehouse.scan');
+    document.getElementById('btn-warehouse-scan').disabled = !AccessControl.can('warehouse.scan');
+  },
+
+  resolveArticle(scanValue) {
+    const value = String(scanValue ?? '').trim();
+    if (!value) return null;
+    return DB.getArticleById(value) || DB.getArticleByExternalQrCode(value);
+  },
+
+  handleScan() {
+    const order = this.getSelectedOrder();
+    if (!order?.id) return;
+    if (!AccessControl.can('warehouse.scan')) {
+      Toast.warning('Für das Scannen fehlt die Berechtigung.');
+      return;
+    }
+
+    const input = document.getElementById('warehouse-scan-input');
+    const article = this.resolveArticle(input.value);
+    if (!article) {
+      Toast.error('Der Scan konnte keinem vorhandenen Artikel zugeordnet werden.');
+      input.focus();
+      input.select();
+      return;
+    }
+    if (!article.groupId) {
+      Toast.error(`Artikel ${article.id} ist keiner Artikelgruppe zugeordnet.`);
+      input.focus();
+      input.select();
+      return;
+    }
+    if (['Verkauft', 'Entsorgt'].includes(Utils.normalizeStatus(article.status))) {
+      Toast.error(`Artikel ${article.id} kann mit dem Status ${Utils.normalizeStatus(article.status)} nicht gepickt werden.`);
+      input.focus();
+      input.select();
+      return;
+    }
+
+    const positions = OrderLogic.normalizePositions(order.positions).map(position => ({
+      ...position,
+      scannedArticleIds: [...(position.scannedArticleIds ?? [])],
+    }));
+
+    if (positions.some(position => position.scannedArticleIds.includes(article.id))) {
+      Toast.warning(`Artikel ${article.id} wurde in diesem Auftrag bereits gescannt.`);
+      input.value = '';
+      input.focus();
+      return;
+    }
+
+    const targetPosition = positions.find(position =>
+      position.groupId === article.groupId
+      && (position.scannedArticleIds?.length ?? 0) < (parseInt(position.quantity, 10) || 0)
+    );
+
+    if (!targetPosition) {
+      Toast.error(`Artikel ${article.id} gehört zu keiner offenen Position dieses Auftrags.`);
+      input.focus();
+      input.select();
+      return;
+    }
+
+    targetPosition.scannedArticleIds.push(article.id);
+    DB.updateOrder(order.id, OrderLogic.prepareForSave({
+      ...order,
+      positions,
+      orderStatus: 'Freigegeben',
+    }));
+    input.value = '';
+    input.focus();
+    Toast.success(`Artikel ${article.id} wurde dem Auftrag ${order.id} zugeordnet.`);
+    this.render();
+    Orders.render();
+  },
+
+  markReady() {
+    const order = this.getSelectedOrder();
+    if (!order?.id) return;
+    if (!AccessControl.can('warehouse.ready')) {
+      Toast.warning('Für diese Aktion fehlt die Berechtigung.');
+      return;
+    }
+    if (order.progress.total === 0 || order.progress.picked < order.progress.total) {
+      Toast.warning('Der Auftrag ist noch nicht vollständig gescannt.');
+      return;
+    }
+    DB.updateOrder(order.id, OrderLogic.prepareForSave({
+      ...order,
+      warehouseStatus: 'Bereit zur Abholung',
+      orderStatus: 'Freigegeben',
+    }));
+    Toast.success(`Auftrag ${order.id} ist jetzt bereit zur Abholung.`);
+    this.render();
+    Orders.render();
+  },
+
+  markHandedOver() {
+    const order = this.getSelectedOrder();
+    if (!order?.id) return;
+    if (!AccessControl.can('warehouse.handover')) {
+      Toast.warning('Für diese Aktion fehlt die Berechtigung.');
+      return;
+    }
+    if (order.paymentStatus !== 'Bezahlt') {
+      Toast.warning('Vor der Übergabe muss der Auftrag als bezahlt markiert sein.');
+      return;
+    }
+    DB.updateOrder(order.id, OrderLogic.prepareForSave({
+      ...order,
+      warehouseStatus: 'Übergeben',
+      orderStatus: 'Abgeschlossen',
+    }));
+    Toast.success(`Auftrag ${order.id} wurde als übergeben abgeschlossen.`);
+    this.render();
+    Orders.render();
+  },
+};
+
+const AdminPanel = {
+  _expandedPermissionGroups: new Set(),
+
+  init() {
+    document.querySelectorAll('[data-admin-tab]').forEach(button => {
+      button.addEventListener('click', () => {
+        State.adminTab = button.dataset.adminTab;
+        this.render();
+      });
+    });
+
+    document.getElementById('admin-user-form').addEventListener('submit', event => {
+      event.preventDefault();
+      this.saveUser();
+    });
+    document.getElementById('btn-cancel-admin-user')
+      .addEventListener('click', () => this.resetUserForm());
+
+    document.getElementById('admin-role-form').addEventListener('submit', event => {
+      event.preventDefault();
+      this.saveRole();
+    });
+    document.getElementById('btn-cancel-admin-role')
+      .addEventListener('click', () => this.resetRoleForm());
+
+    document.getElementById('admin-users-list').addEventListener('click', event => {
+      const button = event.target.closest('[data-edit-user]');
+      if (!button) return;
+      this.openUser(button.dataset.editUser);
+    });
+
+    document.getElementById('admin-roles-list').addEventListener('click', event => {
+      const button = event.target.closest('[data-edit-role]');
+      if (!button) return;
+      this.openRole(button.dataset.editRole);
+    });
+
+    const permissionsContainer = document.getElementById('admin-role-permissions');
+    permissionsContainer.addEventListener('change', event => {
+      if (event.target.classList.contains('permission-group-master')) {
+        const groupId = event.target.dataset.groupId;
+        permissionsContainer
+          .querySelectorAll(`.permission-item-checkbox[data-group-id="${groupId}"]`)
+          .forEach(checkbox => { checkbox.checked = event.target.checked; });
+      }
+      this.syncPermissionMasterCheckboxes();
+    });
+    permissionsContainer.addEventListener('click', event => {
+      const button = event.target.closest('[data-toggle-permission-group]');
+      if (!button) return;
+      const groupId = button.dataset.togglePermissionGroup;
+      if (this._expandedPermissionGroups.has(groupId)) {
+        this._expandedPermissionGroups.delete(groupId);
+      } else {
+        this._expandedPermissionGroups.add(groupId);
+      }
+      this.renderPermissionGroups(this.getSelectedPermissionIds());
+    });
+
+    this.renderPermissionGroups([]);
+  },
+
+  getSelectedPermissionIds() {
+    return Array.from(document.querySelectorAll('#admin-role-permissions .permission-item-checkbox:checked'))
+      .map(checkbox => checkbox.value);
+  },
+
+  render() {
+    if (!AccessControl.canAny(['admin.users.view', 'admin.roles.view'])) return;
+
+    const canUsers = AccessControl.can('admin.users.view');
+    const canRoles = AccessControl.can('admin.roles.view');
+    const canManageUsers = AccessControl.can('admin.users.manage');
+    const canManageRoles = AccessControl.can('admin.roles.manage');
+
+    if (State.adminTab === 'users' && !canUsers) State.adminTab = canRoles ? 'roles' : 'users';
+    if (State.adminTab === 'roles' && !canRoles) State.adminTab = canUsers ? 'users' : 'roles';
+
+    document.querySelectorAll('[data-admin-tab]').forEach(button => {
+      const isActive = button.dataset.adminTab === State.adminTab;
+      button.classList.toggle('active', isActive);
+      button.classList.toggle('hidden', (button.dataset.adminTab === 'users' && !canUsers) || (button.dataset.adminTab === 'roles' && !canRoles));
+    });
+
+    document.getElementById('admin-tab-users').classList.toggle('hidden', State.adminTab !== 'users');
+    document.getElementById('admin-tab-roles').classList.toggle('hidden', State.adminTab !== 'roles');
+
+    document.querySelectorAll('#admin-user-form input, #admin-user-form select').forEach(field => {
+      if (field.id === 'admin-user-original-id') return;
+      field.disabled = !canManageUsers;
+    });
+    document.querySelectorAll('#admin-role-form input, #admin-role-form textarea, #admin-role-form .permission-item-checkbox, #admin-role-form .permission-group-master').forEach(field => {
+      if (field.id === 'admin-role-edit-id') return;
+      field.disabled = !canManageRoles;
+    });
+    document.getElementById('btn-save-admin-user').disabled = !canManageUsers;
+    document.getElementById('btn-save-admin-role').disabled = !canManageRoles;
+
+    this.renderRoleOptions();
+    this.renderUsersList();
+    this.renderRolesList();
+    this.syncPermissionMasterCheckboxes();
+    document.querySelectorAll('#admin-role-form [data-toggle-permission-group]').forEach(button => {
+      button.disabled = !canManageRoles;
+    });
+  },
+
+  renderRoleOptions() {
+    const select = document.getElementById('admin-user-role');
+    const roles = DB.getRoles().sort((left, right) => String(left.name ?? '').localeCompare(String(right.name ?? '')));
+    const currentValue = select.value;
+    select.innerHTML = [
+      '<option value="">Bitte Rolle wählen</option>',
+      ...roles.map(role => `<option value="${Utils.escHtml(role.id)}">${Utils.escHtml(role.name || role.id)}</option>`),
+    ].join('');
+    select.value = roles.some(role => role.id === currentValue) ? currentValue : '';
+  },
+
+  renderUsersList() {
+    const container = document.getElementById('admin-users-list');
+    const users = DB.getUsers().sort((left, right) => {
+      const leftLabel = String(left.displayName ?? left.email ?? '');
+      const rightLabel = String(right.displayName ?? right.email ?? '');
+      return leftLabel.localeCompare(rightLabel);
+    });
+
+    if (!users.length) {
+      container.innerHTML = `<div class="empty-state">
+        <i class="fa-solid fa-users"></i>
+        <p>Noch keine Nutzer angelegt.</p>
+      </div>`;
+      return;
+    }
+
+    container.innerHTML = users.map(user => {
+      const role = DB.getRoleById(user.roleId);
+      return `<article class="admin-item">
+        <div class="admin-item__top">
+          <div>
+            <div class="admin-item__title">${Utils.escHtml(user.displayName || user.email || user.id)}</div>
+            <div class="admin-item__meta">
+              <span><i class="fa-solid fa-envelope"></i> ${Utils.escHtml(user.email || '-')}</span>
+              <span><i class="fa-solid fa-user-lock"></i> ${Utils.escHtml(role?.name || 'Ohne Rolle')}</span>
+            </div>
+          </div>
+          <div class="admin-item__actions">
+            ${user.active === false ? OrderLogic.renderStatusPill('Inaktiv') : OrderLogic.renderStatusPill('Aktiv')}
+            ${AccessControl.can('admin.users.manage') ? `<button class="btn btn-outline btn-sm" type="button" data-edit-user="${Utils.escHtml(user.id)}">
+              <i class="fa-solid fa-pen-to-square"></i> Bearbeiten
+            </button>` : ''}
+          </div>
+        </div>
+      </article>`;
+    }).join('');
+  },
+
+  renderRolesList() {
+    const container = document.getElementById('admin-roles-list');
+    const roles = DB.getRoles().sort((left, right) => {
+      if (!!left.isSystemRole !== !!right.isSystemRole) return left.isSystemRole ? -1 : 1;
+      return String(left.name ?? '').localeCompare(String(right.name ?? ''));
+    });
+
+    if (!roles.length) {
+      container.innerHTML = `<div class="empty-state">
+        <i class="fa-solid fa-user-lock"></i>
+        <p>Noch keine Rollen vorhanden.</p>
+      </div>`;
+      return;
+    }
+
+    container.innerHTML = roles.map(role => `
+      <article class="admin-item">
+        <div class="admin-item__top">
+          <div>
+            <div class="admin-item__title">${Utils.escHtml(role.name || role.id)}</div>
+            <div class="admin-item__meta">
+              <span><i class="fa-solid fa-key"></i> ${role.permissions?.length ?? 0} Berechtigungen</span>
+              ${role.isSystemRole ? '<span><i class="fa-solid fa-shield-halved"></i> Systemrolle</span>' : ''}
+            </div>
+          </div>
+          <div class="admin-item__actions">
+            ${role.locked ? OrderLogic.renderStatusPill('Geschützt') : ''}
+            ${AccessControl.can('admin.roles.manage') && !role.locked ? `<button class="btn btn-outline btn-sm" type="button" data-edit-role="${Utils.escHtml(role.id)}">
+              <i class="fa-solid fa-pen-to-square"></i> Bearbeiten
+            </button>` : ''}
+          </div>
+        </div>
+      </article>`).join('');
+  },
+
+  renderPermissionGroups(selectedPermissions = []) {
+    const selected = new Set(selectedPermissions);
+    const container = document.getElementById('admin-role-permissions');
+    container.innerHTML = RoleSecurity.permissionGroups.map(group => {
+      const checkedCount = group.permissions.filter(permission => selected.has(permission.id)).length;
+      const expanded = this._expandedPermissionGroups.has(group.id);
+      return `<section class="permission-group" data-permission-group="${Utils.escHtml(group.id)}">
+        <div class="permission-group__header">
+          <label class="permission-group__master">
+            <input type="checkbox" class="permission-group-master" data-group-id="${Utils.escHtml(group.id)}">
+            <div>
+              ${Utils.escHtml(group.label)}
+              <small>${Utils.escHtml(group.description)} · ${checkedCount}/${group.permissions.length}</small>
+            </div>
+          </label>
+          <button class="permission-group__toggle" type="button" data-toggle-permission-group="${Utils.escHtml(group.id)}">
+            ${expanded ? 'Details ausblenden' : 'Details anzeigen'}
+          </button>
+        </div>
+        <div class="permission-group__body${expanded ? '' : ' hidden'}">
+          ${group.permissions.map(permission => `
+            <label class="permission-item">
+              <input type="checkbox"
+                     class="permission-item-checkbox"
+                     data-group-id="${Utils.escHtml(group.id)}"
+                     value="${Utils.escHtml(permission.id)}"${selected.has(permission.id) ? ' checked' : ''}>
+              <div>
+                <strong>${Utils.escHtml(permission.label)}</strong>
+                <span>${Utils.escHtml(permission.description)}</span>
+              </div>
+            </label>`).join('')}
+        </div>
+      </section>`;
+    }).join('');
+    this.syncPermissionMasterCheckboxes();
+  },
+
+  syncPermissionMasterCheckboxes() {
+    document.querySelectorAll('.permission-group').forEach(groupElement => {
+      const itemCheckboxes = Array.from(groupElement.querySelectorAll('.permission-item-checkbox'));
+      const checkedCount = itemCheckboxes.filter(checkbox => checkbox.checked).length;
+      const master = groupElement.querySelector('.permission-group-master');
+      if (!master) return;
+      master.checked = checkedCount === itemCheckboxes.length && itemCheckboxes.length > 0;
+      master.indeterminate = checkedCount > 0 && checkedCount < itemCheckboxes.length;
+    });
+  },
+
+  resetUserForm() {
+    document.getElementById('admin-user-form').reset();
+    document.getElementById('admin-user-original-id').value = '';
+    const emailInput = document.getElementById('admin-user-email');
+    emailInput.disabled = false;
+    document.getElementById('admin-user-active').checked = true;
+  },
+
+  openUser(userId) {
+    const user = DB.getUserById(userId);
+    if (!user) return;
+    document.getElementById('admin-user-original-id').value = user.id;
+    document.getElementById('admin-user-name').value = user.displayName || '';
+    document.getElementById('admin-user-email').value = user.email || '';
+    document.getElementById('admin-user-email').disabled = true;
+    document.getElementById('admin-user-role').value = user.roleId || '';
+    document.getElementById('admin-user-active').checked = user.active !== false;
+    State.adminTab = 'users';
+    this.render();
+  },
+
+  async saveUser() {
+    if (!AccessControl.can('admin.users.manage')) {
+      Toast.warning('Für die Nutzerverwaltung fehlt die Berechtigung.');
+      return;
+    }
+
+    const originalId = document.getElementById('admin-user-original-id').value.trim();
+    const email = RoleSecurity.normalizeEmail(document.getElementById('admin-user-email').value);
+    const roleId = document.getElementById('admin-user-role').value;
+    const displayName = document.getElementById('admin-user-name').value.trim();
+
+    if (!displayName) {
+      Toast.error('Bitte einen Namen eingeben.');
+      return;
+    }
+    if (!email) {
+      Toast.error('Bitte eine gültige E-Mail-Adresse eingeben.');
+      return;
+    }
+    if (!roleId) {
+      Toast.error('Bitte eine Rolle auswählen.');
+      return;
+    }
+
+    await DB.saveUser({
+      ...(DB.getUserById(originalId || email) ?? {}),
+      email,
+      displayName,
+      roleId,
+      active: document.getElementById('admin-user-active').checked,
+    });
+
+    Toast.success(originalId ? 'Nutzer wurde aktualisiert.' : 'Nutzer wurde angelegt.');
+    this.resetUserForm();
+    this.render();
+  },
+
+  resetRoleForm() {
+    document.getElementById('admin-role-form').reset();
+    document.getElementById('admin-role-edit-id').value = '';
+    this.renderPermissionGroups([]);
+  },
+
+  openRole(roleId) {
+    const role = DB.getRoleById(roleId);
+    if (!role) return;
+    document.getElementById('admin-role-edit-id').value = role.id;
+    document.getElementById('admin-role-name').value = role.name || '';
+    document.getElementById('admin-role-description').value = role.description || '';
+    this.renderPermissionGroups(role.permissions ?? []);
+    State.adminTab = 'roles';
+    this.render();
+  },
+
+  async saveRole() {
+    if (!AccessControl.can('admin.roles.manage')) {
+      Toast.warning('Für die Rollenverwaltung fehlt die Berechtigung.');
+      return;
+    }
+
+    const roleId = document.getElementById('admin-role-edit-id').value.trim();
+    const existingRole = roleId ? DB.getRoleById(roleId) : null;
+    if (existingRole?.locked) {
+      Toast.warning('Geschützte Systemrollen können nicht bearbeitet werden.');
+      return;
+    }
+
+    const name = document.getElementById('admin-role-name').value.trim();
+    const description = document.getElementById('admin-role-description').value.trim();
+    const permissions = this.getSelectedPermissionIds();
+
+    if (!name) {
+      Toast.error('Bitte einen Rollennamen eingeben.');
+      return;
+    }
+    if (!permissions.length) {
+      Toast.error('Bitte mindestens eine Berechtigung auswählen.');
+      return;
+    }
+
+    if (existingRole) {
+      DB.updateRole(roleId, {
+        ...existingRole,
+        name,
+        description,
+        permissions,
+      });
+      Toast.success('Rolle wurde aktualisiert.');
+    } else {
+      await DB.saveRole({
+        name,
+        description,
+        permissions,
+        isSystemRole: false,
+        locked: false,
+      });
+      Toast.success('Rolle wurde angelegt.');
+    }
+
+    this.resetRoleForm();
+    this.render();
+  },
+};
+
 /* ============================================================
    16. PUBLIC QR ROUTER
 ============================================================ */
@@ -6601,14 +8354,30 @@ const App = {
     if (this._syncingFromRealtime) return;
     this._syncingFromRealtime = true;
     try {
+      AccessControl.refreshSessionFromStore();
+      AccessControl.refreshNavigation();
+      AppChrome.update();
+      if (State.appUser && !AccessControl.canAccessView(State.currentView)) {
+        const fallbackView = AccessControl.getFirstAvailableView();
+        if (fallbackView) {
+          Router.navigate(fallbackView);
+          return;
+        }
+      }
       Dashboard.renderStats();
 
       if (State.currentView === 'inventory') {
         Inventory.queueRender();
+      } else if (State.currentView === 'orders') {
+        Orders.render();
+      } else if (State.currentView === 'warehouse') {
+        Warehouse.render();
       } else if (State.currentView === 'sold') {
         Sold.queueRender();
       } else if (State.currentView === 'encyclopedia') {
         Encyclopedia.queueRender();
+      } else if (State.currentView === 'admin') {
+        AdminPanel.render();
       } else if (State.currentView === 'scanner') {
         QRScanner.refreshActiveResult();
         QRScanner._renderRelocationList();
@@ -6646,21 +8415,26 @@ const App = {
 
   async init() {
     await DB._ready;
+    await DB.ensureSystemRoles();
     DB.ensurePublicQrTokens();
     Utils.observeVisibleTextRepair();
     Modal.init();
     Sidebar.init();
+    AppChrome.init();
     Router.init();
     Dashboard.init();
     Inventory.init();
+    Orders.init();
+    Warehouse.init();
     Sold.init();
     Encyclopedia.init();
+    AdminPanel.init();
     Tools.init();
     Groups.init();
     QRScanner.init();
     DB.onChange(() => this.queueRealtimeSync());
 
-    Router.navigate('dashboard');
+    Router.navigate(AccessControl.getFirstAvailableView() || 'dashboard');
 
     document.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -6745,21 +8519,50 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('logout-btn').addEventListener('click', () => {
+    AccessControl.clearSession();
     _auth.signOut();
   });
 
   _auth.onAuthStateChanged(async user => {
+    const errorEl = document.getElementById('login-error');
     if (!user) {
+      AccessControl.clearSession();
       document.getElementById('login-screen').classList.remove('hidden');
       document.getElementById('app').classList.add('hidden');
       return;
     }
+    if (!appInitialized) {
+      appInitialized = true;
+      await App.init();
+    }
+
+    const access = await AccessControl.syncAuthUser(user);
+    if (!access.allowed) {
+      document.getElementById('login-screen').classList.remove('hidden');
+      document.getElementById('app').classList.add('hidden');
+      if (errorEl) {
+        errorEl.textContent = access.message;
+        errorEl.style.display = 'block';
+      }
+      AccessControl.clearSession();
+      await _auth.signOut();
+      return;
+    }
+
+    if (errorEl) {
+      errorEl.style.display = 'none';
+      errorEl.textContent = '';
+    }
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
-    if (!appInitialized) {
-  appInitialized = true;
-  await App.init();
-}
+    AccessControl.refreshNavigation();
+    AppChrome.update();
+    if (!AccessControl.canAccessView(State.currentView)) {
+      const fallbackView = AccessControl.getFirstAvailableView();
+      if (fallbackView) Router.navigate(fallbackView);
+    } else {
+      Router.navigate(State.currentView);
+    }
   });
 });
 

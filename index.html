@@ -94,6 +94,14 @@
         <i class="fa-solid fa-boxes-stacked"></i>
         <span>Bestand</span>
       </a>
+      <a href="#" class="nav-item" data-view="orders">
+        <i class="fa-solid fa-clipboard-list"></i>
+        <span>Aufträge</span>
+      </a>
+      <a href="#" class="nav-item" data-view="warehouse">
+        <i class="fa-solid fa-warehouse"></i>
+        <span>Warenausgang</span>
+      </a>
       <a href="#" class="nav-item" data-view="sold">
         <i class="fa-solid fa-handshake"></i>
         <span>Verkauft</span>
@@ -101,6 +109,10 @@
       <a href="#" class="nav-item" data-view="encyclopedia">
         <i class="fa-solid fa-book-open"></i>
         <span>EnzyklopÃ¤die</span>
+      </a>
+      <a href="#" class="nav-item" data-view="admin">
+        <i class="fa-solid fa-user-shield"></i>
+        <span>Admin</span>
       </a>
       <a href="#" class="nav-item" data-view="tools">
         <i class="fa-solid fa-screwdriver-wrench"></i>
@@ -1023,6 +1035,332 @@
     <!-- â”€â”€ ENDE VIEW: BESTAND â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
 
     <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+         VIEW: AUFTRÃ„GE
+    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+    <div id="view-orders" class="view hidden">
+
+      <section class="order-summary-grid">
+        <div class="order-summary-card">
+          <div class="order-summary-card__icon order-summary-card__icon--blue">
+            <i class="fa-solid fa-clipboard-list"></i>
+          </div>
+          <div>
+            <div class="order-summary-card__value" id="orders-stat-total">0</div>
+            <div class="order-summary-card__label">Aufträge gesamt</div>
+          </div>
+        </div>
+        <div class="order-summary-card">
+          <div class="order-summary-card__icon order-summary-card__icon--orange">
+            <i class="fa-solid fa-box-open"></i>
+          </div>
+          <div>
+            <div class="order-summary-card__value" id="orders-stat-open">0</div>
+            <div class="order-summary-card__label">Im Warenausgang offen</div>
+          </div>
+        </div>
+        <div class="order-summary-card">
+          <div class="order-summary-card__icon order-summary-card__icon--green">
+            <i class="fa-solid fa-credit-card"></i>
+          </div>
+          <div>
+            <div class="order-summary-card__value" id="orders-stat-paid">0</div>
+            <div class="order-summary-card__label">Bezahlt</div>
+          </div>
+        </div>
+      </section>
+
+      <div class="view-toolbar">
+        <div class="toolbar-search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="search" id="orders-search"
+                 placeholder="Auftragsnummer oder Kundenname suchen â€¦"
+                 aria-label="Aufträge durchsuchen"/>
+        </div>
+        <div class="toolbar-filters">
+          <select id="orders-filter-order-status" aria-label="Nach Auftragsstatus filtern">
+            <option value="">Alle Auftragsstatus</option>
+            <option value="Angelegt">Angelegt</option>
+            <option value="Freigegeben">Freigegeben</option>
+            <option value="Abgeschlossen">Abgeschlossen</option>
+            <option value="Storniert">Storniert</option>
+          </select>
+          <select id="orders-filter-warehouse-status" aria-label="Nach Warenausgangsstatus filtern">
+            <option value="">Alle Warenausgangsstatus</option>
+            <option value="Nicht freigegeben">Nicht freigegeben</option>
+            <option value="Offen">Offen</option>
+            <option value="In Bearbeitung">In Bearbeitung</option>
+            <option value="Vollständig">Vollständig</option>
+            <option value="Bereit zur Abholung">Bereit zur Abholung</option>
+            <option value="Übergeben">Übergeben</option>
+          </select>
+          <select id="orders-filter-payment-status" aria-label="Nach Zahlungsstatus filtern">
+            <option value="">Alle Zahlungsstatus</option>
+            <option value="Offen">Offen</option>
+            <option value="Teilbezahlt">Teilbezahlt</option>
+            <option value="Bezahlt">Bezahlt</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-order-new" type="button">
+          <i class="fa-solid fa-plus"></i>
+          Neuer Auftrag
+        </button>
+      </div>
+
+      <div class="orders-layout">
+        <section class="orders-list-panel">
+          <div id="orders-list"></div>
+        </section>
+
+        <section class="orders-detail-panel">
+          <div id="orders-empty-state" class="empty-state">
+            <i class="fa-solid fa-clipboard-check"></i>
+            <p>Wähle links einen Auftrag aus oder lege einen neuen Auftrag an.</p>
+          </div>
+
+          <div id="orders-detail-shell" class="hidden">
+            <div class="order-detail-header">
+              <div>
+                <span class="detail-eyebrow" id="order-detail-id">Auftrag</span>
+                <h2 id="order-detail-customer-display">Neuer Auftrag</h2>
+                <div id="order-detail-status-badges" class="status-pill-row"></div>
+              </div>
+              <div class="order-detail-header__actions">
+                <button class="btn btn-outline btn-sm" id="btn-order-release" type="button">
+                  <i class="fa-solid fa-share"></i>
+                  Freigeben
+                </button>
+                <button class="btn btn-outline btn-sm" id="btn-order-set-ready" type="button">
+                  <i class="fa-solid fa-box-open"></i>
+                  Bereit
+                </button>
+                <button class="btn btn-outline btn-sm" id="btn-order-set-handed-over" type="button">
+                  <i class="fa-solid fa-handshake"></i>
+                  Übergeben
+                </button>
+              </div>
+            </div>
+
+            <form id="order-form" novalidate>
+              <input type="hidden" id="order-edit-id" value=""/>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="order-customer-name">Kundenname <span class="required">*</span></label>
+                  <input type="text" id="order-customer-name" placeholder="z. B. Max Mustermann"/>
+                </div>
+                <div class="form-group">
+                  <label for="order-customer-phone">Telefon</label>
+                  <input type="text" id="order-customer-phone" placeholder="z. B. 0151 23456789"/>
+                </div>
+                <div class="form-group">
+                  <label for="order-date">Auftragsdatum</label>
+                  <input type="date" id="order-date"/>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="order-fulfillment-type">Art</label>
+                  <select id="order-fulfillment-type">
+                    <option value="Abholung">Abholung</option>
+                    <option value="Lieferung">Lieferung</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="order-status">Auftragsstatus</label>
+                  <select id="order-status">
+                    <option value="Angelegt">Angelegt</option>
+                    <option value="Freigegeben">Freigegeben</option>
+                    <option value="Abgeschlossen">Abgeschlossen</option>
+                    <option value="Storniert">Storniert</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="order-warehouse-status">Warenausgangsstatus</label>
+                  <select id="order-warehouse-status">
+                    <option value="Nicht freigegeben">Nicht freigegeben</option>
+                    <option value="Offen">Offen</option>
+                    <option value="In Bearbeitung">In Bearbeitung</option>
+                    <option value="Vollständig">Vollständig</option>
+                    <option value="Bereit zur Abholung">Bereit zur Abholung</option>
+                    <option value="Übergeben">Übergeben</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="order-payment-status">Zahlungsstatus</label>
+                  <select id="order-payment-status">
+                    <option value="Offen">Offen</option>
+                    <option value="Teilbezahlt">Teilbezahlt</option>
+                    <option value="Bezahlt">Bezahlt</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="order-pickup-date">Abhol- / Lieferdatum</label>
+                  <input type="date" id="order-pickup-date"/>
+                </div>
+                <div class="form-group" style="flex:2;">
+                  <label for="order-notes">Interne Notiz</label>
+                  <textarea id="order-notes" rows="3" placeholder="Hinweise für Büro oder Warenausgang"></textarea>
+                </div>
+              </div>
+
+              <section class="order-positions-editor">
+                <div class="order-positions-editor__header">
+                  <div>
+                    <h3>Auftragspositionen</h3>
+                    <p>Wähle die passende Artikelgruppe und lege fest, wie viele Stück gesucht werden sollen.</p>
+                  </div>
+                  <button class="btn btn-outline btn-sm" id="btn-order-add-position" type="button">
+                    <i class="fa-solid fa-plus"></i>
+                    Position
+                  </button>
+                </div>
+                <div id="order-positions-editor"></div>
+              </section>
+
+              <div id="order-position-summary" class="order-position-summary"></div>
+
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary" id="btn-save-order">
+                  <i class="fa-solid fa-floppy-disk"></i>
+                  Auftrag speichern
+                </button>
+                <button type="button" class="btn btn-outline" id="btn-cancel-order">
+                  <i class="fa-solid fa-xmark"></i>
+                  Abbrechen
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+      </div>
+
+    </div>
+    <!-- â”€â”€ ENDE VIEW: AUFTRÃ„GE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+         VIEW: WARENAUSGANG
+    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+    <div id="view-warehouse" class="view hidden">
+
+      <section class="order-summary-grid">
+        <div class="order-summary-card">
+          <div class="order-summary-card__icon order-summary-card__icon--orange">
+            <i class="fa-solid fa-hourglass-half"></i>
+          </div>
+          <div>
+            <div class="order-summary-card__value" id="warehouse-stat-open">0</div>
+            <div class="order-summary-card__label">Offene Aufträge</div>
+          </div>
+        </div>
+        <div class="order-summary-card">
+          <div class="order-summary-card__icon order-summary-card__icon--blue">
+            <i class="fa-solid fa-barcode"></i>
+          </div>
+          <div>
+            <div class="order-summary-card__value" id="warehouse-stat-progress">0</div>
+            <div class="order-summary-card__label">In Bearbeitung</div>
+          </div>
+        </div>
+        <div class="order-summary-card">
+          <div class="order-summary-card__icon order-summary-card__icon--green">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+          <div>
+            <div class="order-summary-card__value" id="warehouse-stat-complete">0</div>
+            <div class="order-summary-card__label">Vollständig</div>
+          </div>
+        </div>
+      </section>
+
+      <div class="view-toolbar">
+        <div class="toolbar-search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="search" id="warehouse-search"
+                 placeholder="Kunde oder Auftragsnummer suchen â€¦"
+                 aria-label="Warenausgang durchsuchen"/>
+        </div>
+        <div class="toolbar-filters">
+          <select id="warehouse-filter-status" aria-label="Nach Status filtern">
+            <option value="">Alle Status</option>
+            <option value="Offen">Offen</option>
+            <option value="In Bearbeitung">In Bearbeitung</option>
+            <option value="Vollständig">Vollständig</option>
+            <option value="Bereit zur Abholung">Bereit zur Abholung</option>
+            <option value="Übergeben">Übergeben</option>
+          </select>
+          <label class="checkbox-label warehouse-finished-toggle">
+            <input type="checkbox" id="warehouse-show-finished"/>
+            <span>Fertige anzeigen</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="warehouse-layout">
+        <section class="warehouse-list-panel">
+          <div id="warehouse-orders-list"></div>
+        </section>
+
+        <section class="warehouse-detail-panel">
+          <div id="warehouse-empty-state" class="empty-state">
+            <i class="fa-solid fa-warehouse"></i>
+            <p>Wähle links einen freigegebenen Auftrag aus, damit die zu suchenden Artikel angezeigt werden.</p>
+          </div>
+
+          <div id="warehouse-detail-shell" class="hidden">
+            <div class="warehouse-detail-header">
+              <div>
+                <span class="detail-eyebrow" id="warehouse-detail-order-id">Warenausgang</span>
+                <h2 id="warehouse-detail-customer">Kein Auftrag ausgewählt</h2>
+                <div id="warehouse-detail-statuses" class="status-pill-row"></div>
+              </div>
+              <div class="warehouse-detail-progress">
+                <span id="warehouse-detail-progress-label">0 von 0</span>
+                <div class="warehouse-progress-bar">
+                  <span id="warehouse-detail-progress-fill"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="warehouse-scan-card">
+              <label for="warehouse-scan-input">Artikel scannen</label>
+              <div class="warehouse-scan-row">
+                <input type="text" id="warehouse-scan-input"
+                       placeholder="Artikel-ID oder Fremd-QR scannen"
+                       autocomplete="off"
+                       autocorrect="off"
+                       spellcheck="false"/>
+                <button class="btn btn-primary" id="btn-warehouse-scan" type="button">
+                  <i class="fa-solid fa-barcode"></i>
+                  Buchen
+                </button>
+              </div>
+              <p class="warehouse-scan-hint">Beim Scan erhöht sich der Fortschritt der passenden Artikelgruppe automatisch.</p>
+            </div>
+
+            <div id="warehouse-positions-list" class="warehouse-positions-list"></div>
+
+            <div class="warehouse-detail-actions">
+              <button class="btn btn-outline" id="btn-warehouse-mark-ready" type="button">
+                <i class="fa-solid fa-box-open"></i>
+                Als bereit markieren
+              </button>
+              <button class="btn btn-outline" id="btn-warehouse-mark-handed-over" type="button">
+                <i class="fa-solid fa-handshake"></i>
+                Als übergeben markieren
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+    </div>
+    <!-- â”€â”€ ENDE VIEW: WARENAUSGANG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
          VIEW: VERKAUFT
     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     <div id="view-sold" class="view hidden">
@@ -1207,6 +1545,137 @@
 
     </div>
     <!-- â”€â”€ ENDE VIEW: ENZYKLOPÃ„DIE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+         VIEW: ADMIN
+    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+    <div id="view-admin" class="view hidden">
+      <div class="admin-shell">
+
+        <div class="form-tabs admin-tabs">
+          <button class="form-tab active" data-admin-tab="users">
+            <i class="fa-solid fa-users"></i> Nutzer
+          </button>
+          <button class="form-tab" data-admin-tab="roles">
+            <i class="fa-solid fa-user-lock"></i> Rollen
+          </button>
+        </div>
+
+        <div id="admin-tab-users" class="admin-tab-panel">
+          <div class="admin-grid">
+            <section class="admin-card">
+              <div class="admin-card__header">
+                <div>
+                  <h3>Nutzer anlegen</h3>
+                  <p>Google-Login wird über die E-Mail-Adresse mit der vergebenen Rolle verknüpft.</p>
+                </div>
+              </div>
+
+              <form id="admin-user-form" novalidate>
+                <input type="hidden" id="admin-user-original-id" value=""/>
+
+                <div class="form-group">
+                  <label for="admin-user-name">Name <span class="required">*</span></label>
+                  <input type="text" id="admin-user-name" placeholder="z. B. Max Mustermann"/>
+                </div>
+
+                <div class="form-group">
+                  <label for="admin-user-email">E-Mail <span class="required">*</span></label>
+                  <input type="email" id="admin-user-email" placeholder="name@firma.de"/>
+                </div>
+
+                <div class="form-group">
+                  <label for="admin-user-role">Rolle <span class="required">*</span></label>
+                  <select id="admin-user-role">
+                    <option value="">Bitte Rolle wählen</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="admin-user-active" checked/>
+                    <span>Nutzer ist aktiv</span>
+                  </label>
+                </div>
+
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary" id="btn-save-admin-user">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    Nutzer speichern
+                  </button>
+                  <button type="button" class="btn btn-outline" id="btn-cancel-admin-user">
+                    <i class="fa-solid fa-xmark"></i>
+                    Zurücksetzen
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <section class="admin-card">
+              <div class="admin-card__header">
+                <div>
+                  <h3>Vorhandene Nutzer</h3>
+                  <p>Nur angelegte und aktive Nutzer erhalten nach dem Google-Login Zugriff auf das System.</p>
+                </div>
+              </div>
+              <div id="admin-users-list" class="admin-list"></div>
+            </section>
+          </div>
+        </div>
+
+        <div id="admin-tab-roles" class="admin-tab-panel hidden">
+          <div class="admin-grid">
+            <section class="admin-card">
+              <div class="admin-card__header">
+                <div>
+                  <h3>Rolle erstellen</h3>
+                  <p>Bereiche können komplett aktiviert oder aufgeklappt im Detail konfiguriert werden.</p>
+                </div>
+              </div>
+
+              <form id="admin-role-form" novalidate>
+                <input type="hidden" id="admin-role-edit-id" value=""/>
+
+                <div class="form-group">
+                  <label for="admin-role-name">Rollenname <span class="required">*</span></label>
+                  <input type="text" id="admin-role-name" placeholder="z. B. Warenausgang"/>
+                </div>
+
+                <div class="form-group">
+                  <label for="admin-role-description">Beschreibung</label>
+                  <textarea id="admin-role-description" rows="3" placeholder="Kurzbeschreibung der Rolle"></textarea>
+                </div>
+
+                <div id="admin-role-permissions" class="permission-groups"></div>
+
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary" id="btn-save-admin-role">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    Rolle speichern
+                  </button>
+                  <button type="button" class="btn btn-outline" id="btn-cancel-admin-role">
+                    <i class="fa-solid fa-xmark"></i>
+                    Zurücksetzen
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <section class="admin-card">
+              <div class="admin-card__header">
+                <div>
+                  <h3>Vorhandene Rollen</h3>
+                  <p>Systemrollen bleiben erhalten. Eigene Rollen können frei erweitert werden.</p>
+                </div>
+              </div>
+              <div id="admin-roles-list" class="admin-list"></div>
+            </section>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <!-- â”€â”€ ENDE VIEW: ADMIN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
 
     <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
          VIEW: TOOLS
