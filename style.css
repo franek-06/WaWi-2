@@ -3275,7 +3275,7 @@ tr[data-id].is-selected > td {
 
 .warehouse-scan-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 12px;
   margin-top: 8px;
 }

@@ -1502,6 +1502,14 @@ const AccessControl = {
   },
 
   canAccessView(viewId) {
+    if (
+      viewId === 'scanner'
+      && typeof QRScanner !== 'undefined'
+      && QRScanner.hasWarehouseSession?.()
+      && this.can('warehouse.scan')
+    ) {
+      return true;
+    }
     const requiredPermission = RoleSecurity.getViewPermission(viewId);
     return this.canAny(requiredPermission);
   },
@@ -6519,6 +6527,7 @@ const QRScanner = {
   _activeResultId     : null,
   _lastScanValue      : '',
   _lastScanAt         : 0,
+  _warehouseOrderId   : null,
 
   init() {
     document.getElementById('scanner-rescan')
@@ -6551,6 +6560,10 @@ const QRScanner = {
       });
     document.getElementById('btn-scanner-context-back')
       .addEventListener('click', () => {
+        if (this.hasWarehouseSession()) {
+          this.returnToWarehouse();
+          return;
+        }
         const groupId = Groups._currentGroupId;
         if (!groupId) return;
         Router.navigate('groups');
@@ -6558,6 +6571,10 @@ const QRScanner = {
       });
     document.getElementById('btn-scanner-context-end')
       .addEventListener('click', () => {
+        if (this.hasWarehouseSession()) {
+          this.returnToWarehouse(true);
+          return;
+        }
         Groups.stopExternalQrMode();
         this._renderExternalQrContext();
       });
@@ -6704,24 +6721,41 @@ const QRScanner = {
         return;
       }
       this._cameras  = devices;
-      const backIdx  = devices.findIndex(d => /back|rear|environment/i.test(d.label));
-      this._camIndex = backIdx >= 0 ? backIdx : 0;
       const switchBtn = document.getElementById('scanner-switch-cam');
       switchBtn.style.display = devices.length > 1 ? 'inline-flex' : 'none';
-      await this._startWithCamera(devices[this._camIndex].id);
+      await this._startPreferredCamera(devices);
     } catch (err) {
       Toast.error('Kamera konnte nicht geÃ¶ffnet werden: ' + err);
       this._setBadge('idle');
     }
   },
 
-  async _startWithCamera(cameraId) {
+  async _startPreferredCamera(devices) {
+    const backIdx = devices.findIndex(device => /back|rear|environment|rück|ruck|haupt/i.test(device.label));
+    this._camIndex = backIdx >= 0 ? backIdx : 0;
+
+    const preferredSources = [
+      { facingMode: { exact: 'environment' } },
+      { facingMode: 'environment' },
+    ];
+
+    for (const source of preferredSources) {
+      try {
+        await this._startWithCamera(source);
+        return;
+      } catch (_) {}
+    }
+
+    await this._startWithCamera(devices[this._camIndex].id);
+  },
+
+  async _startWithCamera(cameraConfig) {
     if (this._running) {
       try { await this._scanner.stop(); } catch (_) {}
       this._running = false;
     }
     await this._scanner.start(
-      cameraId,
+      cameraConfig,
       { fps: 10, qrbox: { width: 250, height: 250 } },
       (text) => this._onScan(text),
       () => {}
@@ -6735,10 +6769,42 @@ const QRScanner = {
       try { await this._scanner.stop(); } catch (_) {}
       this._running = false;
     }
+    if (State.currentView !== 'scanner' && State.currentView !== 'warehouse') {
+      this._warehouseOrderId = null;
+    }
     this._setBadge('idle');
     document.getElementById('scanner-rescan').style.display = 'none';
     if (this._mode === 'single') this._setResult(null);
     this._renderExternalQrContext();
+  },
+
+  hasWarehouseSession() {
+    return !!this._warehouseOrderId;
+  },
+
+  startWarehouseSession(orderId) {
+    this._warehouseOrderId = orderId;
+    this.setMode('single');
+    Router.navigate('scanner');
+    this._renderExternalQrContext();
+  },
+
+  returnToWarehouse(clearOnly = false) {
+    const orderId = this._warehouseOrderId;
+    this._warehouseOrderId = null;
+    if (clearOnly) {
+      Router.navigate('warehouse');
+      if (orderId) State.selectedWarehouseOrderId = orderId;
+      return;
+    }
+    Router.navigate('warehouse');
+    if (orderId) {
+      State.selectedWarehouseOrderId = orderId;
+      window.setTimeout(() => {
+        Warehouse.render();
+        document.getElementById('warehouse-scan-input')?.focus();
+      }, 80);
+    }
   },
 
   async _onScan(text) {
@@ -6750,6 +6816,33 @@ const QRScanner = {
 
     if (this._mode === 'relocate') {
       await this._handleRelocationScan(value);
+      return;
+    }
+
+    if (this.hasWarehouseSession()) {
+      if (this._scanner && this._running) {
+        try { await this._scanner.pause(true); } catch (_) {}
+      }
+      this._setBadge('found');
+      const resolved = ScanResolver.resolve(value);
+      if (![
+        'article-internal',
+        'article-external',
+        'article-public-url',
+        'article-listing',
+      ].includes(resolved.type)) {
+        Toast.error('Im Warenausgang können nur Artikelcodes gescannt werden.');
+        try { this._scanner.resume(); } catch (_) {}
+        this._setBadge('scanning');
+        return;
+      }
+      const result = Warehouse.processScannedArticle(resolved.article, this._warehouseOrderId);
+      if (!result.ok) {
+        try { this._scanner.resume(); } catch (_) {}
+        this._setBadge('scanning');
+        return;
+      }
+      this.returnToWarehouse();
       return;
     }
 
@@ -6911,7 +7004,34 @@ const QRScanner = {
     const progress = document.getElementById('scanner-context-progress');
     const body = document.getElementById('scanner-context-body');
     const rescanBtn = document.getElementById('scanner-rescan');
+    const backBtn = document.getElementById('btn-scanner-context-back');
+    const endBtn = document.getElementById('btn-scanner-context-end');
     if (!panel || !subtitle || !progress || !body || !rescanBtn) return;
+
+    const warehouseOrder = this.hasWarehouseSession()
+      ? OrderLogic.decorate(DB.getOrderById(this._warehouseOrderId))
+      : null;
+    if (warehouseOrder?.id) {
+      panel.classList.remove('hidden');
+      subtitle.textContent = `${warehouseOrder.id} · ${warehouseOrder.customerName || 'Ohne Namen'}`;
+      progress.textContent = `${warehouseOrder.progress.picked} von ${warehouseOrder.progress.total} gepickt`;
+      rescanBtn.style.display = 'none';
+      if (backBtn) backBtn.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Zum Auftrag';
+      if (endBtn) endBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> Scanner schließen';
+      body.innerHTML = `
+        <div class="scanner-context-panel__card">
+          <span>${Utils.escHtml(warehouseOrder.fulfillmentType || 'Abholung')}</span>
+          <strong>${Utils.escHtml(warehouseOrder.customerName || warehouseOrder.id)}</strong>
+          <div class="scanner-context-panel__meta">
+            ${OrderLogic.renderStatusPill(warehouseOrder.warehouseStatus)}
+            ${OrderLogic.renderStatusPill(warehouseOrder.paymentStatus)}
+          </div>
+        </div>
+        <div class="scanner-context-panel__hint">
+          Scanne jetzt einen Artikel für diesen Auftrag. Nach einem erfolgreichen Scan springt das System direkt zurück in den Warenausgang.
+        </div>`;
+      return;
+    }
 
     const context = Groups.getExternalQrScannerContext();
     if (!context) {
@@ -6919,6 +7039,8 @@ const QRScanner = {
       subtitle.textContent = '';
       progress.textContent = '';
       body.innerHTML = '';
+      if (backBtn) backBtn.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Zur Gruppe';
+      if (endBtn) endBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> Serienzuordnung beenden';
       rescanBtn.style.display =
         this._mode === 'single' && this._activeResultId ? 'inline-flex' : 'none';
       return;
@@ -6927,6 +7049,8 @@ const QRScanner = {
     panel.classList.remove('hidden');
     subtitle.textContent = `${context.groupId} · ${context.groupName}`;
     progress.textContent = `${context.assignedCount} von ${context.totalCount} zugeordnet`;
+    if (backBtn) backBtn.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Zur Gruppe';
+    if (endBtn) endBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> Serienzuordnung beenden';
     rescanBtn.style.display = 'none';
 
     let html = '';
@@ -7624,6 +7748,8 @@ const Warehouse = {
       .addEventListener('change', () => this.render());
     document.getElementById('warehouse-show-finished')
       .addEventListener('change', () => this.render());
+    document.getElementById('btn-warehouse-open-scanner')
+      .addEventListener('click', () => this.openCameraScanner());
     document.getElementById('btn-warehouse-scan')
       .addEventListener('click', () => this.handleScan());
     document.getElementById('warehouse-scan-input')
@@ -7802,6 +7928,7 @@ const Warehouse = {
     document.getElementById('btn-warehouse-mark-handed-over').disabled =
       !AccessControl.can('warehouse.handover')
       || order.paymentStatus !== 'Bezahlt';
+    document.getElementById('btn-warehouse-open-scanner').disabled = !AccessControl.can('warehouse.scan');
     document.getElementById('warehouse-scan-input').disabled = !AccessControl.can('warehouse.scan');
     document.getElementById('btn-warehouse-scan').disabled = !AccessControl.can('warehouse.scan');
   },
@@ -7809,7 +7936,82 @@ const Warehouse = {
   resolveArticle(scanValue) {
     const value = String(scanValue ?? '').trim();
     if (!value) return null;
-    return DB.getArticleById(value) || DB.getArticleByExternalQrCode(value);
+    const resolved = ScanResolver.resolve(value);
+    if ([
+      'article-internal',
+      'article-external',
+      'article-public-url',
+      'article-listing',
+    ].includes(resolved.type)) {
+      return resolved.article;
+    }
+    return null;
+  },
+
+  processScannedArticle(article, orderId = State.selectedWarehouseOrderId, options = {}) {
+    const { showToast = true } = options;
+    const order = OrderLogic.decorate(DB.getOrderById(orderId));
+    if (!order?.id) {
+      if (showToast) Toast.error('Kein Auftrag für den Scan ausgewählt.');
+      return { ok: false };
+    }
+    if (!article) {
+      if (showToast) Toast.error('Der Scan konnte keinem vorhandenen Artikel zugeordnet werden.');
+      return { ok: false };
+    }
+    if (!article.groupId) {
+      if (showToast) Toast.error(`Artikel ${article.id} ist keiner Artikelgruppe zugeordnet.`);
+      return { ok: false };
+    }
+    if (['Verkauft', 'Entsorgt'].includes(Utils.normalizeStatus(article.status))) {
+      if (showToast) Toast.error(`Artikel ${article.id} kann mit dem Status ${Utils.normalizeStatus(article.status)} nicht gepickt werden.`);
+      return { ok: false };
+    }
+
+    const positions = OrderLogic.normalizePositions(order.positions).map(position => ({
+      ...position,
+      scannedArticleIds: [...(position.scannedArticleIds ?? [])],
+    }));
+
+    if (positions.some(position => position.scannedArticleIds.includes(article.id))) {
+      if (showToast) Toast.warning(`Artikel ${article.id} wurde in diesem Auftrag bereits gescannt.`);
+      return { ok: false };
+    }
+
+    const targetPosition = positions.find(position =>
+      position.groupId === article.groupId
+      && (position.scannedArticleIds?.length ?? 0) < (parseInt(position.quantity, 10) || 0)
+    );
+
+    if (!targetPosition) {
+      if (showToast) Toast.error(`Artikel ${article.id} gehört zu keiner offenen Position dieses Auftrags.`);
+      return { ok: false };
+    }
+
+    targetPosition.scannedArticleIds.push(article.id);
+    DB.updateOrder(order.id, OrderLogic.prepareForSave({
+      ...order,
+      positions,
+      orderStatus: 'Freigegeben',
+    }));
+
+    if (showToast) {
+      Toast.success(`Artikel ${article.id} wurde dem Auftrag ${order.id} zugeordnet.`);
+    }
+    return { ok: true, orderId: order.id, articleId: article.id };
+  },
+
+  openCameraScanner() {
+    const order = this.getSelectedOrder();
+    if (!order?.id) {
+      Toast.warning('Bitte zuerst einen Auftrag im Warenausgang auswählen.');
+      return;
+    }
+    if (!AccessControl.can('warehouse.scan')) {
+      Toast.warning('Für das Scannen fehlt die Berechtigung.');
+      return;
+    }
+    QRScanner.startWarehouseSession(order.id);
   },
 
   handleScan() {
@@ -7828,52 +8030,14 @@ const Warehouse = {
       input.select();
       return;
     }
-    if (!article.groupId) {
-      Toast.error(`Artikel ${article.id} ist keiner Artikelgruppe zugeordnet.`);
+    const result = this.processScannedArticle(article, order.id);
+    if (!result.ok) {
       input.focus();
       input.select();
       return;
     }
-    if (['Verkauft', 'Entsorgt'].includes(Utils.normalizeStatus(article.status))) {
-      Toast.error(`Artikel ${article.id} kann mit dem Status ${Utils.normalizeStatus(article.status)} nicht gepickt werden.`);
-      input.focus();
-      input.select();
-      return;
-    }
-
-    const positions = OrderLogic.normalizePositions(order.positions).map(position => ({
-      ...position,
-      scannedArticleIds: [...(position.scannedArticleIds ?? [])],
-    }));
-
-    if (positions.some(position => position.scannedArticleIds.includes(article.id))) {
-      Toast.warning(`Artikel ${article.id} wurde in diesem Auftrag bereits gescannt.`);
-      input.value = '';
-      input.focus();
-      return;
-    }
-
-    const targetPosition = positions.find(position =>
-      position.groupId === article.groupId
-      && (position.scannedArticleIds?.length ?? 0) < (parseInt(position.quantity, 10) || 0)
-    );
-
-    if (!targetPosition) {
-      Toast.error(`Artikel ${article.id} gehört zu keiner offenen Position dieses Auftrags.`);
-      input.focus();
-      input.select();
-      return;
-    }
-
-    targetPosition.scannedArticleIds.push(article.id);
-    DB.updateOrder(order.id, OrderLogic.prepareForSave({
-      ...order,
-      positions,
-      orderStatus: 'Freigegeben',
-    }));
     input.value = '';
     input.focus();
-    Toast.success(`Artikel ${article.id} wurde dem Auftrag ${order.id} zugeordnet.`);
     this.render();
     Orders.render();
   },
