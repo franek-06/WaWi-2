@@ -7599,10 +7599,10 @@ const Orders = {
     positionsEditor.addEventListener('change', event => {
       const row = event.target.closest('.order-position-row');
       if (!row) return;
-      if (event.target.classList.contains('order-position-group')) {
-        const originalGroup = row.dataset.originalGroupId || '';
-        if (event.target.value !== originalGroup) row.dataset.scannedIds = '[]';
-        row.dataset.originalGroupId = event.target.value;
+      if (event.target.classList.contains('order-position-group-search')) {
+        this.syncGroupSearchField(row, true);
+        this.updatePositionSummary();
+        return;
       }
       this.updatePositionRowMeta(row);
       this.updatePositionSummary();
@@ -7610,6 +7610,11 @@ const Orders = {
     positionsEditor.addEventListener('input', event => {
       const row = event.target.closest('.order-position-row');
       if (!row) return;
+      if (event.target.classList.contains('order-position-group-search')) {
+        this.syncGroupSearchField(row, false);
+        this.updatePositionSummary();
+        return;
+      }
       if (!event.target.classList.contains('order-position-quantity')
         && !event.target.classList.contains('order-position-price')) return;
       this.updatePositionRowMeta(row);
@@ -7797,18 +7802,71 @@ const Orders = {
     document.getElementById('btn-order-set-handed-over').disabled = !canPayment || !isPersistedOrder || !order || order.paymentStatus !== 'Bezahlt';
   },
 
-  getGroupOptionsHtml(selectedValue = '') {
-    const groups = DB.getGroups()
+  getSelectableGroups() {
+    return DB.getGroups()
       .filter(group => group.status !== 'Entsorgt')
       .sort((left, right) => String(left.name ?? '').localeCompare(String(right.name ?? '')));
+  },
 
-    return [
-      `<option value="">Bitte Gruppe wählen</option>`,
-      ...groups.map(group => `
-        <option value="${Utils.escHtml(group.id)}"${group.id === selectedValue ? ' selected' : ''}>
-          ${Utils.escHtml(group.id)} · ${Utils.escHtml(OrderLogic.getGroupLabel(group.id))}
-        </option>`),
-    ].join('');
+  getGroupSearchLabel(groupId = '') {
+    if (!groupId) return '';
+    return `${groupId} · ${OrderLogic.getGroupLabel(groupId)}`;
+  },
+
+  getGroupOptionsHtml() {
+    return this.getSelectableGroups().map(group => `
+      <option value="${Utils.escHtml(this.getGroupSearchLabel(group.id))}"></option>`).join('');
+  },
+
+  resolveGroupSearchValue(value = '') {
+    const query = String(value ?? '').trim().toLowerCase();
+    if (!query) return null;
+    const groups = this.getSelectableGroups().map(group => ({
+      id: group.id,
+      label: this.getGroupSearchLabel(group.id),
+      groupLabel: OrderLogic.getGroupLabel(group.id),
+    }));
+
+    const exactMatch = groups.find(group =>
+      group.id.toLowerCase() === query
+      || group.label.toLowerCase() === query
+      || group.groupLabel.toLowerCase() === query
+    );
+    if (exactMatch) return exactMatch;
+
+    const partialMatches = groups.filter(group =>
+      group.id.toLowerCase().includes(query)
+      || group.label.toLowerCase().includes(query)
+      || group.groupLabel.toLowerCase().includes(query)
+    );
+    return partialMatches.length === 1 ? partialMatches[0] : null;
+  },
+
+  refreshGroupOptions() {
+    const datalist = document.getElementById('order-group-options');
+    if (datalist) datalist.innerHTML = this.getGroupOptionsHtml();
+  },
+
+  syncGroupSearchField(row, normalizeValue = false) {
+    if (!row) return;
+    const searchField = row.querySelector('.order-position-group-search');
+    const hiddenField = row.querySelector('.order-position-group');
+    if (!searchField || !hiddenField) return;
+
+    const previousGroupId = hiddenField.value || '';
+    const match = this.resolveGroupSearchValue(searchField.value);
+    const nextGroupId = match?.id || '';
+
+    if (nextGroupId !== previousGroupId) {
+      row.dataset.scannedIds = '[]';
+    }
+
+    hiddenField.value = nextGroupId;
+    row.dataset.originalGroupId = nextGroupId;
+
+    if (normalizeValue && match) {
+      searchField.value = match.label;
+    }
   },
 
   positionRowHtml(position = {}) {
@@ -7820,47 +7878,53 @@ const Orders = {
     const saleUnitPrice = OrderLogic.parsePrice(position.saleUnitPrice);
     const effectiveUnitPrice = saleUnitPrice ?? defaultUnitPrice;
     const lineTotal = effectiveUnitPrice !== null ? effectiveUnitPrice * quantity : 0;
+    const groupSearchValue = groupId ? this.getGroupSearchLabel(groupId) : '';
 
     return `<div class="order-position-row" data-scanned-ids="${Utils.escHtml(JSON.stringify(scannedArticleIds))}" data-original-group-id="${Utils.escHtml(groupId)}">
-      <div class="form-group" style="margin-bottom:0;">
-        <label>Artikelgruppe <span class="required">*</span></label>
-        <select class="order-position-group">
-          ${this.getGroupOptionsHtml(groupId)}
-        </select>
-        <div class="order-position-meta">Verfügbar im Bestand: ${available}</div>
+      <div class="order-position-row__main">
+        <div class="form-group order-position-row__group" style="margin-bottom:0;">
+          <label>Artikelgruppe <span class="required">*</span></label>
+          <input type="hidden" class="order-position-group" value="${Utils.escHtml(groupId)}"/>
+          <input type="text" class="order-position-group-search" list="order-group-options" value="${Utils.escHtml(groupSearchValue)}" placeholder="Artikelgruppe suchen oder auswählen"/>
+          <div class="order-position-meta">Verfügbar im Bestand: ${available}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm order-position-row__remove" type="button" data-remove-order-position>
+          <i class="fa-solid fa-trash-can"></i>
+          Entfernen
+        </button>
       </div>
-      <div class="form-group" style="margin-bottom:0;">
-        <label>Stückzahl</label>
-        <input type="number" class="order-position-quantity" value="${quantity}" min="1" max="999"/>
+      <div class="order-position-row__stats">
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Stückzahl</label>
+          <input type="number" class="order-position-quantity" value="${quantity}" min="1" max="999"/>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label>VK pro Stück</label>
+          <input type="number" class="order-position-price" value="${Utils.escHtml(String(saleUnitPrice ?? ''))}" min="0" step="0.01" placeholder="${defaultUnitPrice !== null ? Utils.escHtml(String(defaultUnitPrice.toFixed(2))) : '0,00'}"/>
+          <div class="order-position-meta">Standardpreis: ${defaultUnitPrice !== null ? Utils.formatEuro(defaultUnitPrice) : '–'}</div>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Positionssumme</label>
+          <div class="order-position-total">${effectiveUnitPrice !== null ? Utils.formatEuro(lineTotal) : '–'}</div>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Fortschritt</label>
+          <div class="order-position-meta">${Math.min(scannedArticleIds.length, quantity)} von ${quantity} gescannt</div>
+        </div>
       </div>
-      <div class="form-group" style="margin-bottom:0;">
-        <label>VK pro Stück</label>
-        <input type="number" class="order-position-price" value="${Utils.escHtml(String(saleUnitPrice ?? ''))}" min="0" step="0.01" placeholder="${defaultUnitPrice !== null ? Utils.escHtml(String(defaultUnitPrice.toFixed(2))) : '0,00'}"/>
-        <div class="order-position-meta">Standardpreis: ${defaultUnitPrice !== null ? Utils.formatEuro(defaultUnitPrice) : '–'}</div>
-      </div>
-      <div class="form-group" style="margin-bottom:0;">
-        <label>Positionssumme</label>
-        <div class="order-position-total">${effectiveUnitPrice !== null ? Utils.formatEuro(lineTotal) : '–'}</div>
-      </div>
-      <div class="form-group" style="margin-bottom:0;">
-        <label>Fortschritt</label>
-        <div class="order-position-meta">${Math.min(scannedArticleIds.length, quantity)} von ${quantity} gescannt</div>
-      </div>
-      <button class="btn btn-ghost btn-sm" type="button" data-remove-order-position>
-        <i class="fa-solid fa-trash-can"></i>
-        Entfernen
-      </button>
     </div>`;
   },
 
   renderPositionRows(positions = []) {
     const container = document.getElementById('order-positions-editor');
     const safePositions = positions.length ? positions : [{}];
+    this.refreshGroupOptions();
     container.innerHTML = safePositions.map(position => this.positionRowHtml(position)).join('');
   },
 
   appendPositionRow(position = {}) {
     const container = document.getElementById('order-positions-editor');
+    this.refreshGroupOptions();
     container.insertAdjacentHTML('beforeend', this.positionRowHtml(position));
   },
 
