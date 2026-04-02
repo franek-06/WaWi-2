@@ -3684,6 +3684,21 @@ body.permission-warehouse #topbar-new-article-btn {
     grid-template-columns: 1fr;
   }
 
+  .orders-layout .orders-detail-panel,
+  .warehouse-layout .warehouse-detail-panel {
+    display: none;
+  }
+
+  .orders-layout.show-detail-mobile .orders-list-panel,
+  .warehouse-layout.show-detail-mobile .warehouse-list-panel {
+    display: none;
+  }
+
+  .orders-layout.show-detail-mobile .orders-detail-panel,
+  .warehouse-layout.show-detail-mobile .warehouse-detail-panel {
+    display: block;
+  }
+
   .warehouse-detail-progress {
     align-items: stretch;
     min-width: 0;

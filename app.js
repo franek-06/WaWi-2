@@ -670,6 +670,7 @@ const State = {
   encSortDir       : 'desc',
   selectedOrderId  : null,
   selectedWarehouseOrderId: null,
+  warehouseLastScan: null,
   adminTab         : 'users',
   authUser         : null,
   appUser          : null,
@@ -7339,6 +7340,8 @@ const Orders = {
       });
     document.getElementById('btn-cancel-order')
       .addEventListener('click', () => this.resetDetailState());
+    document.getElementById('btn-order-back')
+      .addEventListener('click', () => this.closeDetail());
     document.getElementById('btn-order-release')
       .addEventListener('click', () => this.releaseSelectedOrder());
     document.getElementById('btn-order-set-ready')
@@ -7403,6 +7406,16 @@ const Orders = {
     this.renderStats();
     this.renderList();
     this.renderDetail();
+    this.updateLayoutState();
+  },
+
+  updateLayoutState() {
+    const layout = document.querySelector('#view-orders .orders-layout');
+    if (!layout) return;
+    layout.classList.toggle(
+      'show-detail-mobile',
+      !!State.selectedOrderId
+    );
   },
 
   renderStats() {
@@ -7421,10 +7434,12 @@ const Orders = {
     const orders = this.getFilteredOrders();
 
     if (!orders.length) {
+      State.selectedOrderId = null;
       container.innerHTML = `<div class="empty-state">
         <i class="fa-solid fa-clipboard-list"></i>
         <p>Noch keine passenden Aufträge vorhanden.</p>
       </div>`;
+      this.updateLayoutState();
       return;
     }
 
@@ -7462,6 +7477,7 @@ const Orders = {
     State.selectedOrderId = orderId;
     this.renderDetail();
     this.renderList();
+    this.updateLayoutState();
   },
 
   openNew() {
@@ -7472,6 +7488,7 @@ const Orders = {
     State.selectedOrderId = this.NEW_ID;
     this.renderDetail();
     this.renderList();
+    this.updateLayoutState();
   },
 
   getSelectedOrder() {
@@ -7488,6 +7505,7 @@ const Orders = {
     if (!selectedOrder && !isNewOrder) {
       emptyState.classList.remove('hidden');
       shell.classList.add('hidden');
+      this.updateLayoutState();
       return;
     }
 
@@ -7526,6 +7544,7 @@ const Orders = {
     document.querySelectorAll('#order-form [data-remove-order-position], #btn-order-add-position').forEach(button => {
       button.disabled = !canModify;
     });
+    this.updateLayoutState();
   },
 
   updateActionButtons(order) {
@@ -7673,6 +7692,10 @@ const Orders = {
   },
 
   resetDetailState() {
+    this.closeDetail();
+  },
+
+  closeDetail() {
     State.selectedOrderId = null;
     document.getElementById('order-form').reset();
     this.render();
@@ -7748,6 +7771,10 @@ const Warehouse = {
       .addEventListener('change', () => this.render());
     document.getElementById('warehouse-show-finished')
       .addEventListener('change', () => this.render());
+    document.getElementById('btn-warehouse-back')
+      .addEventListener('click', () => this.closeDetail());
+    document.getElementById('btn-warehouse-undo')
+      .addEventListener('click', () => this.undoLastScan());
     document.getElementById('btn-warehouse-open-scanner')
       .addEventListener('click', () => this.openCameraScanner());
     document.getElementById('btn-warehouse-scan')
@@ -7789,6 +7816,16 @@ const Warehouse = {
     this.renderStats();
     this.renderList();
     this.renderDetail();
+    this.updateLayoutState();
+  },
+
+  updateLayoutState() {
+    const layout = document.querySelector('#view-warehouse .warehouse-layout');
+    if (!layout) return;
+    layout.classList.toggle(
+      'show-detail-mobile',
+      !!State.selectedWarehouseOrderId
+    );
   },
 
   renderStats() {
@@ -7814,11 +7851,12 @@ const Warehouse = {
         <i class="fa-solid fa-warehouse"></i>
         <p>Aktuell gibt es keine passenden Aufträge im Warenausgang.</p>
       </div>`;
+      this.updateLayoutState();
       return;
     }
 
     if (!orders.some(order => order.id === State.selectedWarehouseOrderId)) {
-      State.selectedWarehouseOrderId = orders[0].id;
+      State.selectedWarehouseOrderId = null;
     }
 
     container.className = 'warehouse-order-list';
@@ -7850,6 +7888,7 @@ const Warehouse = {
         this.render();
       });
     });
+    this.updateLayoutState();
   },
 
   getSelectedOrder() {
@@ -7864,6 +7903,7 @@ const Warehouse = {
     if (!order?.id) {
       emptyState.classList.remove('hidden');
       shell.classList.add('hidden');
+      this.updateLayoutState();
       return;
     }
 
@@ -7928,9 +7968,14 @@ const Warehouse = {
     document.getElementById('btn-warehouse-mark-handed-over').disabled =
       !AccessControl.can('warehouse.handover')
       || order.paymentStatus !== 'Bezahlt';
+    document.getElementById('btn-warehouse-undo').disabled =
+      !AccessControl.can('warehouse.scan')
+      || !State.warehouseLastScan
+      || State.warehouseLastScan.orderId !== order.id;
     document.getElementById('btn-warehouse-open-scanner').disabled = !AccessControl.can('warehouse.scan');
     document.getElementById('warehouse-scan-input').disabled = !AccessControl.can('warehouse.scan');
     document.getElementById('btn-warehouse-scan').disabled = !AccessControl.can('warehouse.scan');
+    this.updateLayoutState();
   },
 
   resolveArticle(scanValue) {
@@ -7998,6 +8043,11 @@ const Warehouse = {
     if (showToast) {
       Toast.success(`Artikel ${article.id} wurde dem Auftrag ${order.id} zugeordnet.`);
     }
+    State.warehouseLastScan = {
+      orderId: order.id,
+      articleId: article.id,
+      scannedAt: Date.now(),
+    };
     return { ok: true, orderId: order.id, articleId: article.id };
   },
 
@@ -8040,6 +8090,55 @@ const Warehouse = {
     input.focus();
     this.render();
     Orders.render();
+  },
+
+  undoLastScan() {
+    const lastScan = State.warehouseLastScan;
+    if (!lastScan?.orderId || !lastScan.articleId) {
+      Toast.warning('Es gibt keinen letzten Scan zum Rückgängig machen.');
+      return;
+    }
+
+    const order = OrderLogic.decorate(DB.getOrderById(lastScan.orderId));
+    if (!order?.id) {
+      State.warehouseLastScan = null;
+      Toast.error('Der Auftrag zum letzten Scan wurde nicht gefunden.');
+      this.render();
+      return;
+    }
+
+    const positions = OrderLogic.normalizePositions(order.positions).map(position => ({
+      ...position,
+      scannedArticleIds: [...(position.scannedArticleIds ?? [])],
+    }));
+
+    const targetPosition = positions.find(position => position.scannedArticleIds.includes(lastScan.articleId));
+    if (!targetPosition) {
+      State.warehouseLastScan = null;
+      Toast.warning('Der letzte Scan ist in diesem Auftrag nicht mehr vorhanden.');
+      this.render();
+      return;
+    }
+
+    targetPosition.scannedArticleIds = targetPosition.scannedArticleIds.filter(articleId => articleId !== lastScan.articleId);
+
+    DB.updateOrder(order.id, OrderLogic.prepareForSave({
+      ...order,
+      positions,
+      orderStatus: 'Freigegeben',
+    }));
+
+    State.selectedWarehouseOrderId = order.id;
+    State.warehouseLastScan = null;
+    Toast.success(`Der letzte Scan (${lastScan.articleId}) wurde rückgängig gemacht.`);
+    this.render();
+    Orders.render();
+  },
+
+  closeDetail() {
+    State.selectedWarehouseOrderId = null;
+    document.getElementById('warehouse-scan-input').value = '';
+    this.render();
   },
 
   markReady() {
@@ -8657,7 +8756,13 @@ const App = {
       if (e.key === 'Escape') {
         const modalVisible = !document.getElementById('modal-overlay').classList.contains('hidden');
         if (!modalVisible) {
-          if (GroupSelection._active) {
+          if (State.currentView === 'scanner' && QRScanner.hasWarehouseSession()) {
+            QRScanner.returnToWarehouse(true);
+          } else if (State.currentView === 'orders' && State.selectedOrderId) {
+            Orders.closeDetail();
+          } else if (State.currentView === 'warehouse' && State.selectedWarehouseOrderId) {
+            Warehouse.closeDetail();
+          } else if (GroupSelection._active) {
             GroupSelection.leave();
           } else if (InventorySelection._active) {
             InventorySelection.leave();
