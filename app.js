@@ -670,6 +670,7 @@ const State = {
   encSortDir       : 'desc',
   selectedOrderId  : null,
   selectedWarehouseOrderId: null,
+  selectedSoldOrderId: null,
   warehouseLastScan: null,
   adminTab         : 'users',
   authUser         : null,
@@ -1386,7 +1387,7 @@ const Router = {
     inventory  : 'Bestandsübersicht',
     orders     : 'Aufträge &amp; Status',
     warehouse  : 'Warenausgang &amp; Scan',
-    sold       : 'Verkaufte Artikel',
+    sold       : 'Verkäufe &amp; Abschluss',
     encyclopedia: 'Enzyklopädie',
     admin      : 'Nutzer &amp; Rollen',
     tools      : 'Tools &amp; Import/Export',
@@ -4003,9 +4004,13 @@ const Sold = {
     this._searchRender = Utils.debounce(() => this.queueRender());
     document.getElementById('sold-search')
       .addEventListener('input', () => this._searchRender());
+    document.getElementById('sold-filter-payment-status')
+      .addEventListener('change', () => this.queueRender());
+    document.getElementById('sold-filter-invoice-status')
+      .addEventListener('change', () => this.queueRender());
     document.getElementById('sold-period-preset')
       .addEventListener('change', () => {
-        const val     = document.getElementById('sold-period-preset').value;
+        const val = document.getElementById('sold-period-preset').value;
         const wrapper = document.getElementById('sold-date-range-wrapper');
         if (val === 'custom') {
           wrapper.style.display = 'flex';
@@ -4013,7 +4018,7 @@ const Sold = {
           wrapper.style.display = 'none';
           const { from, to } = this._presetRange(val);
           document.getElementById('sold-date-from').value = from;
-          document.getElementById('sold-date-to').value   = to;
+          document.getElementById('sold-date-to').value = to;
         }
         this.queueRender();
       });
@@ -4021,6 +4026,10 @@ const Sold = {
       .addEventListener('change', () => this.queueRender());
     document.getElementById('sold-date-to')
       .addEventListener('change', () => this.queueRender());
+    document.getElementById('btn-sold-back')
+      .addEventListener('click', () => this.closeDetail());
+    document.getElementById('btn-sold-open-order')
+      .addEventListener('click', () => this.openSelectedOrder());
   },
 
   queueRender() {
@@ -4033,9 +4042,9 @@ const Sold = {
   },
 
   _presetRange(preset) {
-    const now   = new Date();
-    const pad   = n => String(n).padStart(2, '0');
-    const fmt   = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const fmt = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     const today = fmt(now);
     if (preset === 'week') {
       const day = now.getDay() || 7;
@@ -4043,9 +4052,9 @@ const Sold = {
       mon.setDate(now.getDate() - day + 1);
       return { from: fmt(mon), to: today };
     }
-    if (preset === 'month')   return { from: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`, to: today };
+    if (preset === 'month') return { from: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`, to: today };
     if (preset === 'quarter') {
-      const q    = Math.floor(now.getMonth() / 3);
+      const q = Math.floor(now.getMonth() / 3);
       const from = new Date(now.getFullYear(), q * 3, 1);
       return { from: fmt(from), to: today };
     }
@@ -4053,103 +4062,259 @@ const Sold = {
     return { from: '', to: '' };
   },
 
-  render() {
-    const container = document.getElementById('sold-container');
-    const search    = document.getElementById('sold-search').value.trim();
-    const dateFrom  = document.getElementById('sold-date-from').value;
-    const dateTo    = document.getElementById('sold-date-to').value;
+  getAllOrders() {
+    return DB.getOrders()
+      .map(order => OrderLogic.decorate(order))
+      .filter(order => OrderLogic.isVisibleInSold(order))
+      .sort((left, right) => (OrderLogic.getCompletionTimestamp(right) || 0) - (OrderLogic.getCompletionTimestamp(left) || 0));
+  },
 
-    let articles = DB.getArticles().filter(a => a.status === 'Verkauft');
-    if (search)   articles = articles.filter(a => Utils.articleMatchesSearch(a, search));
-    if (dateFrom) articles = articles.filter(a => a.soldDate && a.soldDate >= dateFrom);
-    if (dateTo)   articles = articles.filter(a => a.soldDate && a.soldDate <= dateTo);
-    articles.sort((a, b) => b.updatedAt - a.updatedAt);
+  getFilteredOrders() {
+    const search = document.getElementById('sold-search').value.trim();
+    const dateFrom = document.getElementById('sold-date-from').value;
+    const dateTo = document.getElementById('sold-date-to').value;
+    const paymentStatus = document.getElementById('sold-filter-payment-status').value;
+    const invoiceStatus = document.getElementById('sold-filter-invoice-status').value;
 
-    const totalRevenue  = articles.reduce((s, a) => s + (parseFloat(a.soldPrice)     || 0), 0);
-    const totalPurchase = articles.reduce((s, a) => s + (parseFloat(a.purchasePrice) || 0), 0);
-    const totalProfit   = totalRevenue - totalPurchase;
+    return this.getAllOrders().filter(order => {
+      const completionTs = OrderLogic.getCompletionTimestamp(order);
+      const completionDate = completionTs ? Utils.formatDateInput(completionTs) : '';
+      return OrderLogic.matchesSearch(order, search)
+        && (!paymentStatus || order.paymentStatus === paymentStatus)
+        && (!invoiceStatus || order.invoiceStatus === invoiceStatus)
+        && (!dateFrom || (completionDate && completionDate >= dateFrom))
+        && (!dateTo || (completionDate && completionDate <= dateTo));
+    });
+  },
 
-    document.getElementById('sum-revenue').textContent  = Utils.formatEuro(totalRevenue);
-    document.getElementById('sum-purchase').textContent = Utils.formatEuro(totalPurchase);
-    const profitEl       = document.getElementById('sum-profit');
-    profitEl.textContent = Utils.formatEuro(totalProfit);
-    profitEl.className   = `profit-value ${totalProfit >= 0 ? 'profit-positive' : 'profit-negative'}`;
+  updateLayoutState() {
+    const layout = document.querySelector('#view-sold .sold-layout');
+    if (!layout) return;
+    layout.classList.toggle('show-detail-mobile', !!State.selectedSoldOrderId);
+  },
 
-    if (!articles.length) {
-      container.innerHTML = `
-        <div class="empty-state">
-          <i class="fa-solid fa-handshake"></i>
-          <p>Noch keine verkauften Artikel.</p>
-        </div>`;
+  renderStats(orders) {
+    const totalOrders = orders.length;
+    const totalRevenue = orders.reduce((sum, order) => sum + (order.pricing?.total || 0), 0);
+    const paidCount = orders.filter(order => order.paymentStatus === 'Bezahlt').length;
+    const invoicedCount = orders.filter(order => order.invoiceStatus === 'Erstellt').length;
+
+    document.getElementById('sold-stat-orders').textContent = String(totalOrders);
+    document.getElementById('sold-stat-revenue').textContent = Utils.formatEuro(totalRevenue);
+    document.getElementById('sold-stat-paid').textContent = String(paidCount);
+    document.getElementById('sold-stat-invoiced').textContent = String(invoicedCount);
+  },
+
+  renderList(orders = this.getFilteredOrders()) {
+    const container = document.getElementById('sold-orders-list');
+
+    if (!orders.length) {
+      State.selectedSoldOrderId = null;
+      container.innerHTML = `<div class="empty-state">
+        <i class="fa-solid fa-file-invoice-dollar"></i>
+        <p>Noch keine abgeschlossenen Aufträge im gewählten Zeitraum.</p>
+      </div>`;
+      this.updateLayoutState();
       return;
     }
 
-    container.className = 'cards-grid';
-    container.innerHTML = articles.map(a => {
-      const img = a.photos?.[0]
-        ? `<img src="${a.photos[0]}" alt="${Utils.escHtml(a.model || a.category)}" loading="lazy"/>`
-        : `<div class="card-image-placeholder"><i class="fa-solid fa-couch"></i></div>`;
-      const sold     = parseFloat(a.soldPrice)     || 0;
-      const purchase = parseFloat(a.purchasePrice) || 0;
-      const profit   = sold - purchase;
-      const cls      = profit >= 0 ? 'profit-positive' : 'profit-negative';
-      const trendIcon = profit >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
-      const soldDate  = a.soldDate
-        ? new Date(a.soldDate).toLocaleDateString('de-DE')
-        : 'â€“';
-      const groupBadge = a.groupId
-        ? (() => {
-            const g     = DB.getGroupById(a.groupId);
-            const label = g?.name
-              ? `${Utils.escHtml(a.groupId)} Â· ${Utils.escHtml(g.name.substring(0, 22))}${g.name.length > 22 ? 'â€¦' : ''}`
-              : Utils.escHtml(a.groupId);
-            return `<div style="margin-top:6px;">
-                      <span style="font-size:var(--font-size-xs);color:var(--color-primary);font-weight:600;">
-                        <i class="fa-solid fa-layer-group"></i> ${label}
-                      </span>
-                    </div>`;
-          })()
-        : '';
-      return `
-        <article class="article-card">
-          <div class="card-image">${img}<div class="card-badges">${Utils.statusBadge(a.status)}</div></div>
-          <div class="card-body">
-            <span class="card-id">${Utils.escHtml(a.id)}</span>
-        <div class="card-title">${Utils.escHtml(Utils.articleDisplayName(a))}</div>
-            <div class="card-meta">${Utils.condBadge(a.condition)}</div>
-            ${groupBadge}
-            <div style="margin-top:12px;padding:12px;background:var(--color-bg);border-radius:var(--border-radius-sm);">
-              <div style="display:flex;justify-content:space-between;font-size:var(--font-size-sm);margin-bottom:4px;">
-                <span style="color:var(--color-muted);">Einkaufspreis</span>
-                <span>${purchase ? Utils.formatEuro(purchase) : 'â€“'}</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;font-size:var(--font-size-sm);margin-bottom:4px;">
-                <span style="color:var(--color-muted);">Verkaufspreis</span>
-                <span style="font-weight:600;">${sold ? Utils.formatEuro(sold) : 'â€“'}</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;font-size:var(--font-size-sm);border-top:1px solid var(--color-border);padding-top:6px;">
-                <span style="color:var(--color-muted);">Gewinn / Verlust</span>
-                <span class="${cls}"><i class="fa-solid ${trendIcon}"></i> ${Utils.formatEuro(profit)}</span>
-              </div>
-            </div>
-            <div style="font-size:var(--font-size-xs);color:var(--color-muted);margin-top:8px;">
-              <i class="fa-solid fa-calendar-check"></i> Verkauft am ${soldDate}
+    if (!orders.some(order => order.id === State.selectedSoldOrderId)) {
+      State.selectedSoldOrderId = null;
+    }
+
+    container.className = 'sold-order-list';
+    container.innerHTML = orders.map(order => {
+      const isActive = State.selectedSoldOrderId === order.id ? ' is-active' : '';
+      const completionTs = OrderLogic.getCompletionTimestamp(order);
+      const completionDate = completionTs ? Utils.formatDate(completionTs) : '-';
+      return `<article class="sold-order-card${isActive}" data-sold-order-id="${Utils.escHtml(order.id)}">
+        <div class="sold-order-card__top">
+          <div>
+            <span class="order-card__eyebrow">${Utils.escHtml(order.id)}</span>
+            <div class="order-card__title">${Utils.escHtml(order.customerName || 'Ohne Namen')}</div>
+            <div class="sold-order-card__meta">
+              <span><i class="fa-solid fa-calendar-check"></i> ${Utils.escHtml(completionDate)}</span>
+              <span><i class="fa-solid fa-truck-ramp-box"></i> ${Utils.escHtml(order.fulfillmentType || 'Abholung')}</span>
+              <span><i class="fa-solid fa-credit-card"></i> ${Utils.escHtml(order.paymentMethod || 'Noch offen')}</span>
             </div>
           </div>
-          <div class="card-footer">
-            <button class="btn btn-ghost btn-sm" data-action="edit" data-id="${a.id}">
-              <i class="fa-solid fa-pen-to-square"></i> Bearbeiten
-            </button>
+          <div class="sold-order-card__total">
+            <span class="sold-order-card__total-label">Verkauf</span>
+            <span class="sold-order-card__total-value">${Utils.formatEuro(order.pricing?.total || 0)}</span>
           </div>
-        </article>`;
+        </div>
+        <div class="sold-order-card__footer">
+          <div class="order-card__badges">
+            ${OrderLogic.renderStatusPill(order.paymentStatus)}
+            ${OrderLogic.renderStatusPill(order.invoiceStatus)}
+          </div>
+          <div class="sold-order-card__date">${order.progress.total} Stück</div>
+        </div>
+      </article>`;
     }).join('');
 
-    container.querySelectorAll('[data-action]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (btn.dataset.action === 'edit')
-          Dashboard.loadArticleIntoForm(btn.dataset.id);
-      });
+    container.querySelectorAll('[data-sold-order-id]').forEach(card => {
+      card.addEventListener('click', () => this.open(card.dataset.soldOrderId));
     });
+    this.updateLayoutState();
+  },
+
+  open(orderId) {
+    State.selectedSoldOrderId = orderId;
+    this.renderList();
+    this.renderDetail();
+    this.updateLayoutState();
+  },
+
+  closeDetail() {
+    State.selectedSoldOrderId = null;
+    this.render();
+  },
+
+  getSelectedOrder() {
+    if (!State.selectedSoldOrderId) return null;
+    return OrderLogic.decorate(DB.getOrderById(State.selectedSoldOrderId));
+  },
+
+  openSelectedOrder() {
+    const order = this.getSelectedOrder();
+    if (!order?.id || !AccessControl.can('orders.view')) return;
+    State.selectedOrderId = order.id;
+    Router.navigate('orders');
+  },
+
+  renderDetail() {
+    const emptyState = document.getElementById('sold-empty-state');
+    const shell = document.getElementById('sold-detail-shell');
+    const order = this.getSelectedOrder();
+
+    if (!order?.id) {
+      emptyState.classList.remove('hidden');
+      shell.classList.add('hidden');
+      this.updateLayoutState();
+      return;
+    }
+
+    const completionTs = OrderLogic.getCompletionTimestamp(order);
+    const completionDate = completionTs ? Utils.formatDateTime(completionTs) : '-';
+
+    emptyState.classList.add('hidden');
+    shell.classList.remove('hidden');
+
+    document.getElementById('sold-detail-order-id').textContent = order.id;
+    document.getElementById('sold-detail-customer').textContent = order.customerName || 'Ohne Namen';
+    document.getElementById('sold-detail-statuses').innerHTML = [
+      OrderLogic.renderStatusPill(order.orderStatus),
+      OrderLogic.renderStatusPill(order.warehouseStatus),
+      OrderLogic.renderStatusPill(order.paymentStatus),
+      OrderLogic.renderStatusPill(order.invoiceStatus),
+    ].join('');
+    document.getElementById('btn-sold-open-order').disabled = !AccessControl.can('orders.view');
+
+    document.getElementById('sold-detail-meta').innerHTML = [
+      `<article class="sold-meta-card">
+        <span class="sold-meta-card__label">Auftragsdatum</span>
+        <div class="sold-meta-card__value">${Utils.escHtml(order.orderDate || '-')}</div>
+        <div class="sold-meta-card__sub">Ursprünglich angelegt im Auftrag.</div>
+      </article>`,
+      `<article class="sold-meta-card">
+        <span class="sold-meta-card__label">Abschluss</span>
+        <div class="sold-meta-card__value">${Utils.escHtml(completionDate)}</div>
+        <div class="sold-meta-card__sub">Sichtbar, sobald der Auftrag übergeben und abgeschlossen wurde.</div>
+      </article>`,
+      `<article class="sold-meta-card">
+        <span class="sold-meta-card__label">Art</span>
+        <div class="sold-meta-card__value">${Utils.escHtml(order.fulfillmentType || 'Abholung')}</div>
+        <div class="sold-meta-card__sub">${Utils.escHtml(order.pickupDate || 'Kein Termin hinterlegt')}</div>
+      </article>`,
+      `<article class="sold-meta-card">
+        <span class="sold-meta-card__label">Zahlungsart</span>
+        <div class="sold-meta-card__value">${Utils.escHtml(order.paymentMethod || 'Noch offen')}</div>
+        <div class="sold-meta-card__sub">${Utils.escHtml(order.customerPhone || 'Keine Telefonnummer hinterlegt')}</div>
+      </article>`,
+    ].join('');
+
+    document.getElementById('sold-detail-summary').innerHTML = [
+      `<article class="sold-summary-card">
+        <span class="sold-summary-card__label">Listenwert</span>
+        <div class="sold-summary-card__value sold-summary-card__value--large">${Utils.formatEuro(order.pricing?.listTotal || 0)}</div>
+        <div class="sold-summary-card__sub">Aus den hinterlegten Gruppenpreisen berechnet.</div>
+      </article>`,
+      `<article class="sold-summary-card">
+        <span class="sold-summary-card__label">Verkauf gesamt</span>
+        <div class="sold-summary-card__value sold-summary-card__value--large">${Utils.formatEuro(order.pricing?.total || 0)}</div>
+        <div class="sold-summary-card__sub">Finaler Auftragswert aus den im Auftrag gespeicherten Verkaufspreisen.</div>
+      </article>`,
+      `<article class="sold-summary-card">
+        <span class="sold-summary-card__label">Rabatt / Abweichung</span>
+        <div class="sold-summary-card__value sold-summary-card__value--large">${Utils.formatEuro(order.pricing?.discount || 0)}</div>
+        <div class="sold-summary-card__sub">${(order.pricing?.discount || 0) > 0 ? 'Unter dem Listenwert verkauft.' : (order.pricing?.discount || 0) < 0 ? 'Über dem Listenwert verkauft.' : 'Entspricht dem Listenwert.'}</div>
+      </article>`,
+      `<article class="sold-summary-card">
+        <span class="sold-summary-card__label">Ohne Preis</span>
+        <div class="sold-summary-card__value sold-summary-card__value--large">${order.pricing?.unpricedPositions || 0}</div>
+        <div class="sold-summary-card__sub">Positionen ohne Gruppen- oder Verkaufspreis.</div>
+      </article>`,
+    ].join('');
+
+    document.getElementById('sold-detail-positions').innerHTML = `
+      <section class="sold-detail-section">
+        <div class="sold-detail-section__header">
+          <h3>Auftragspositionen</h3>
+          <p>Hier stehen die finalen Verkaufspreise aus dem Auftrag. Diese Informationen bleiben vom Warenausgang getrennt.</p>
+        </div>
+        <div class="sold-position-list">
+          ${order.positions.map(position => {
+            const quantity = parseInt(position.quantity, 10) || 0;
+            const standardUnit = position.defaultUnitPrice !== null ? Utils.formatEuro(position.defaultUnitPrice) : '–';
+            const actualUnit = position.effectiveUnitPrice !== null ? Utils.formatEuro(position.effectiveUnitPrice) : '–';
+            const total = position.effectiveUnitPrice !== null ? Utils.formatEuro((position.effectiveUnitPrice || 0) * quantity) : '–';
+            return `<article class="sold-position-row">
+              <div>
+                <div class="sold-position-row__title">${Utils.escHtml(OrderLogic.getGroupLabel(position.groupId))}</div>
+                <div class="sold-position-row__sub">${Utils.escHtml(position.groupId)} · ${quantity} Stück</div>
+              </div>
+              <div>
+                <span class="sold-position-row__metric-label">Menge</span>
+                <div class="sold-position-row__metric-value">${quantity}</div>
+              </div>
+              <div>
+                <span class="sold-position-row__metric-label">Standard</span>
+                <div class="sold-position-row__metric-value">${standardUnit}</div>
+              </div>
+              <div>
+                <span class="sold-position-row__metric-label">Verkauf</span>
+                <div class="sold-position-row__metric-value">${actualUnit}</div>
+              </div>
+              <div>
+                <span class="sold-position-row__metric-label">Position</span>
+                <div class="sold-position-row__metric-value">${total}</div>
+              </div>
+            </article>`;
+          }).join('')}
+        </div>
+      </section>`;
+
+    document.getElementById('sold-sumup-card').innerHTML = `
+      <span class="sold-interface-card__label">SumUp später</span>
+      <strong>Zahlungsseite vorbereitet</strong>
+      <p>Wichtige Basis dafür sind hier schon vorhanden: Zahlungsstatus <strong>${Utils.escHtml(order.paymentStatus)}</strong> und Zahlungsart <strong>${Utils.escHtml(order.paymentMethod || 'offen')}</strong>.</p>`;
+
+    document.getElementById('sold-easybill-card').innerHTML = `
+      <span class="sold-interface-card__label">easybill später</span>
+      <strong>Rechnungsseite vorbereitet</strong>
+      <p>Die spätere Anbindung kann auf dem Auftragswert <strong>${Utils.formatEuro(order.pricing?.total || 0)}</strong> und dem Rechnungsstatus <strong>${Utils.escHtml(order.invoiceStatus)}</strong> aufsetzen.</p>`;
+
+    this.updateLayoutState();
+  },
+
+  render() {
+    if (!AccessControl.can('sold.view')) return;
+    const orders = this.getFilteredOrders();
+    this.renderStats(orders);
+    this.renderList(orders);
+    this.renderDetail();
+    this.updateLayoutState();
   },
 };
 
@@ -7095,6 +7260,13 @@ const QRScanner = {
 const OrderLogic = {
   NEW_ORDER_ID: '__new_order__',
 
+  parsePrice(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const parsed = parseFloat(value);
+    if (!Number.isFinite(parsed) || parsed < 0) return null;
+    return parsed;
+  },
+
   createEmptyOrder() {
     return {
       customerName: '',
@@ -7104,7 +7276,10 @@ const OrderLogic = {
       orderStatus: 'Angelegt',
       warehouseStatus: 'Nicht freigegeben',
       paymentStatus: 'Offen',
+      paymentMethod: '',
+      invoiceStatus: 'Nicht erstellt',
       pickupDate: '',
+      completedAt: null,
       notes: '',
       positions: [],
     };
@@ -7122,10 +7297,20 @@ const OrderLogic = {
     return ['Offen', 'Teilbezahlt', 'Bezahlt'];
   },
 
+  getInvoiceStatuses() {
+    return ['Nicht erstellt', 'Vorbereitet', 'Erstellt', 'Nicht nötig'];
+  },
+
   getGroupLabel(groupId) {
     const group = DB.getGroupById(groupId);
     if (!group) return groupId;
     return Utils.groupDisplayName(group, DB.getArticlesByGroup(groupId), group.name || group.id) || group.id;
+  },
+
+  getGroupDefaultUnitPrice(groupId) {
+    const group = DB.getGroupById(groupId);
+    const price = parseFloat(group?.priceNet);
+    return Number.isFinite(price) ? price : null;
   },
 
   getAvailableGroupQuantity(groupId) {
@@ -7157,9 +7342,7 @@ const OrderLogic = {
   },
 
   normalizePositions(positions = []) {
-    const merged = new Map();
-
-    positions.forEach((position, index) => {
+    return positions.map((position, index) => {
       const groupId = String(position?.groupId ?? '').trim();
       const quantity = Math.max(1, parseInt(position?.quantity, 10) || 1);
       if (!groupId) return;
@@ -7170,30 +7353,22 @@ const OrderLogic = {
           .filter(Boolean)
       )).slice(0, quantity);
 
-      if (!merged.has(groupId)) {
-        merged.set(groupId, {
-          positionId: String(position?.positionId ?? `POS-${index + 1}`),
-          groupId,
-          quantity,
-          scannedArticleIds,
-        });
-        return;
-      }
+      const saleUnitPrice = this.parsePrice(position?.saleUnitPrice);
+      const defaultUnitPrice = this.getGroupDefaultUnitPrice(groupId);
+      const effectiveUnitPrice = saleUnitPrice ?? defaultUnitPrice;
 
-      const existing = merged.get(groupId);
-      existing.quantity += quantity;
-      existing.scannedArticleIds = Array.from(new Set([
-        ...existing.scannedArticleIds,
-        ...scannedArticleIds,
-      ])).slice(0, existing.quantity);
-    });
-
-    return Array.from(merged.values()).map((position, index) => ({
-      positionId: position.positionId || `POS-${index + 1}`,
-      groupId: position.groupId,
-      quantity: Math.max(1, parseInt(position.quantity, 10) || 1),
-      scannedArticleIds: Array.from(new Set(position.scannedArticleIds ?? [])).slice(0, Math.max(1, parseInt(position.quantity, 10) || 1)),
-    }));
+      return {
+        positionId: String(position?.positionId ?? `POS-${index + 1}`),
+        groupId,
+        quantity,
+        scannedArticleIds,
+        saleUnitPrice,
+        defaultUnitPrice,
+        effectiveUnitPrice,
+        lineTotal: effectiveUnitPrice !== null ? effectiveUnitPrice * quantity : 0,
+        hasCustomPrice: saleUnitPrice !== null,
+      };
+    }).filter(Boolean);
   },
 
   getProgress(order) {
@@ -7205,6 +7380,23 @@ const OrderLogic = {
     );
     const percent = total ? Math.round((picked / total) * 100) : 0;
     return { total, picked, percent };
+  },
+
+  getPricing(order) {
+    const positions = Array.isArray(order)
+      ? this.normalizePositions(order)
+      : this.normalizePositions(order?.positions ?? []);
+    const listTotal = positions.reduce(
+      (sum, position) => sum + ((position.defaultUnitPrice ?? 0) * (parseInt(position.quantity, 10) || 0)),
+      0
+    );
+    const total = positions.reduce(
+      (sum, position) => sum + ((position.effectiveUnitPrice ?? 0) * (parseInt(position.quantity, 10) || 0)),
+      0
+    );
+    const discount = listTotal - total;
+    const unpricedPositions = positions.filter(position => position.effectiveUnitPrice === null).length;
+    return { listTotal, total, discount, unpricedPositions };
   },
 
   getComputedWarehouseStatus(order) {
@@ -7225,6 +7417,7 @@ const OrderLogic = {
   decorate(order) {
     const positions = this.normalizePositions(order?.positions ?? []);
     const paymentStatus = this.getPaymentStatuses().includes(order?.paymentStatus) ? order.paymentStatus : 'Offen';
+    const invoiceStatus = this.getInvoiceStatuses().includes(order?.invoiceStatus) ? order.invoiceStatus : 'Nicht erstellt';
     let orderStatus = this.getOrderStatuses().includes(order?.orderStatus) ? order.orderStatus : 'Angelegt';
     let warehouseStatus = this.getWarehouseStatuses().includes(order?.warehouseStatus)
       ? order.warehouseStatus
@@ -7234,6 +7427,10 @@ const OrderLogic = {
     if (warehouseStatus === 'Übergeben' && paymentStatus === 'Bezahlt' && orderStatus !== 'Storniert') {
       orderStatus = 'Abgeschlossen';
     }
+    const isCompleted = orderStatus === 'Abgeschlossen' || warehouseStatus === 'Übergeben';
+    const completedAt = isCompleted
+      ? (order?.completedAt || order?.updatedAt || Date.now())
+      : null;
 
     return {
       ...this.createEmptyOrder(),
@@ -7241,8 +7438,12 @@ const OrderLogic = {
       orderStatus,
       warehouseStatus,
       paymentStatus,
+      paymentMethod: String(order?.paymentMethod ?? '').trim(),
+      invoiceStatus,
+      completedAt,
       positions,
       progress: this.getProgress({ positions }),
+      pricing: this.getPricing({ positions }),
     };
   },
 
@@ -7256,9 +7457,20 @@ const OrderLogic = {
       orderStatus: decorated.orderStatus,
       warehouseStatus: decorated.warehouseStatus,
       paymentStatus: decorated.paymentStatus,
+      paymentMethod: String(decorated.paymentMethod ?? '').trim(),
+      invoiceStatus: decorated.invoiceStatus,
       pickupDate: decorated.pickupDate || '',
+      completedAt: decorated.completedAt || null,
       notes: String(decorated.notes ?? '').trim(),
-      positions: decorated.positions,
+      positions: decorated.positions.map((position, index) => ({
+        positionId: String(position.positionId ?? `POS-${index + 1}`),
+        groupId: String(position.groupId ?? '').trim(),
+        quantity: Math.max(1, parseInt(position.quantity, 10) || 1),
+        scannedArticleIds: Array.from(new Set(
+          (position.scannedArticleIds ?? []).map(value => String(value ?? '').trim()).filter(Boolean)
+        )).slice(0, Math.max(1, parseInt(position.quantity, 10) || 1)),
+        saleUnitPrice: this.parsePrice(position.saleUnitPrice) ?? position.defaultUnitPrice ?? null,
+      })),
     };
   },
 
@@ -7269,6 +7481,7 @@ const OrderLogic = {
       order.id,
       order.customerName,
       order.customerPhone,
+      order.paymentMethod,
       order.notes,
     ].some(value => String(value ?? '').toLowerCase().includes(lowerQuery));
   },
@@ -7279,10 +7492,27 @@ const OrderLogic = {
       || ['Offen', 'In Bearbeitung', 'Vollständig', 'Bereit zur Abholung', 'Übergeben'].includes(order.warehouseStatus);
   },
 
+  isVisibleInSold(order) {
+    return order.orderStatus === 'Abgeschlossen' || order.warehouseStatus === 'Übergeben';
+  },
+
+  getCompletionTimestamp(order) {
+    const source = order?.progress ? order : this.decorate(order);
+    if (!this.isVisibleInSold(source)) return null;
+    const numericCompletedAt = Number(source.completedAt);
+    if (Number.isFinite(numericCompletedAt) && numericCompletedAt > 0) return numericCompletedAt;
+    if (typeof source.completedAt === 'string') {
+      const parsedDate = Date.parse(source.completedAt);
+      if (Number.isFinite(parsedDate)) return parsedDate;
+    }
+    return Number(source.updatedAt) || null;
+  },
+
   getStatusTone(status) {
-    if (['Abgeschlossen', 'Vollständig', 'Bereit zur Abholung', 'Bezahlt', 'Übergeben', 'Aktiv'].includes(status)) return 'success';
-    if (['Freigegeben', 'In Bearbeitung', 'Teilbezahlt', 'Lieferung', 'Abholung'].includes(status)) return 'info';
-    if (['Offen', 'Nicht freigegeben', 'Angelegt', 'Geschützt', 'Inaktiv'].includes(status)) return 'warning';
+    if (['Abgeschlossen', 'Vollständig', 'Bereit zur Abholung', 'Bezahlt', 'Übergeben', 'Aktiv', 'Erstellt'].includes(status)) return 'success';
+    if (['Freigegeben', 'In Bearbeitung', 'Teilbezahlt', 'Lieferung', 'Abholung', 'Vorbereitet'].includes(status)) return 'info';
+    if (['Offen', 'Nicht freigegeben', 'Angelegt', 'Geschützt', 'Inaktiv', 'Nicht erstellt'].includes(status)) return 'warning';
+    if (status === 'Nicht nötig') return 'neutral';
     if (status === 'Storniert') return 'danger';
     return 'neutral';
   },
@@ -7301,6 +7531,10 @@ const OrderLogic = {
       Übergeben: 'fa-handshake',
       Teilbezahlt: 'fa-money-bill-wave',
       Bezahlt: 'fa-credit-card',
+      'Nicht erstellt': 'fa-file-circle-xmark',
+      Vorbereitet: 'fa-file-circle-plus',
+      Erstellt: 'fa-file-invoice',
+      'Nicht nötig': 'fa-file-circle-minus',
       Abholung: 'fa-truck-ramp-box',
       Lieferung: 'fa-truck',
       Aktiv: 'fa-user-check',
@@ -7374,8 +7608,11 @@ const Orders = {
       this.updatePositionSummary();
     });
     positionsEditor.addEventListener('input', event => {
-      if (!event.target.classList.contains('order-position-quantity')) return;
-      this.updatePositionRowMeta(event.target.closest('.order-position-row'));
+      const row = event.target.closest('.order-position-row');
+      if (!row) return;
+      if (!event.target.classList.contains('order-position-quantity')
+        && !event.target.classList.contains('order-position-price')) return;
+      this.updatePositionRowMeta(row);
       this.updatePositionSummary();
     });
   },
@@ -7519,6 +7756,7 @@ const Orders = {
       OrderLogic.renderStatusPill(order.orderStatus),
       OrderLogic.renderStatusPill(order.warehouseStatus),
       OrderLogic.renderStatusPill(order.paymentStatus),
+      OrderLogic.renderStatusPill(order.invoiceStatus),
     ].join('');
 
     document.getElementById('order-edit-id').value = selectedOrder?.id ?? '';
@@ -7530,6 +7768,8 @@ const Orders = {
     document.getElementById('order-warehouse-status').value = order.warehouseStatus || 'Nicht freigegeben';
     document.getElementById('order-payment-status').value = order.paymentStatus || 'Offen';
     document.getElementById('order-pickup-date').value = order.pickupDate || '';
+    document.getElementById('order-payment-method').value = order.paymentMethod || '';
+    document.getElementById('order-invoice-status').value = order.invoiceStatus || 'Nicht erstellt';
     document.getElementById('order-notes').value = order.notes || '';
 
     this.renderPositionRows(order.positions);
@@ -7576,6 +7816,10 @@ const Orders = {
     const scannedArticleIds = Array.isArray(position.scannedArticleIds) ? position.scannedArticleIds : [];
     const groupId = String(position.groupId ?? '').trim();
     const available = groupId ? OrderLogic.getAvailableGroupQuantity(groupId) : 0;
+    const defaultUnitPrice = OrderLogic.getGroupDefaultUnitPrice(groupId);
+    const saleUnitPrice = OrderLogic.parsePrice(position.saleUnitPrice);
+    const effectiveUnitPrice = saleUnitPrice ?? defaultUnitPrice;
+    const lineTotal = effectiveUnitPrice !== null ? effectiveUnitPrice * quantity : 0;
 
     return `<div class="order-position-row" data-scanned-ids="${Utils.escHtml(JSON.stringify(scannedArticleIds))}" data-original-group-id="${Utils.escHtml(groupId)}">
       <div class="form-group" style="margin-bottom:0;">
@@ -7588,6 +7832,15 @@ const Orders = {
       <div class="form-group" style="margin-bottom:0;">
         <label>Stückzahl</label>
         <input type="number" class="order-position-quantity" value="${quantity}" min="1" max="999"/>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>VK pro Stück</label>
+        <input type="number" class="order-position-price" value="${Utils.escHtml(String(saleUnitPrice ?? ''))}" min="0" step="0.01" placeholder="${defaultUnitPrice !== null ? Utils.escHtml(String(defaultUnitPrice.toFixed(2))) : '0,00'}"/>
+        <div class="order-position-meta">Standardpreis: ${defaultUnitPrice !== null ? Utils.formatEuro(defaultUnitPrice) : '–'}</div>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Positionssumme</label>
+        <div class="order-position-total">${effectiveUnitPrice !== null ? Utils.formatEuro(lineTotal) : '–'}</div>
       </div>
       <div class="form-group" style="margin-bottom:0;">
         <label>Fortschritt</label>
@@ -7616,9 +7869,15 @@ const Orders = {
     const groupId = row.querySelector('.order-position-group')?.value || '';
     const quantity = Math.max(1, parseInt(row.querySelector('.order-position-quantity')?.value, 10) || 1);
     const scannedIds = JSON.parse(row.dataset.scannedIds || '[]');
+    const defaultUnitPrice = OrderLogic.getGroupDefaultUnitPrice(groupId);
+    const saleUnitPrice = OrderLogic.parsePrice(row.querySelector('.order-position-price')?.value);
+    const effectiveUnitPrice = saleUnitPrice ?? defaultUnitPrice;
     const metaNodes = row.querySelectorAll('.order-position-meta');
     if (metaNodes[0]) metaNodes[0].textContent = `Verfügbar im Bestand: ${groupId ? OrderLogic.getAvailableGroupQuantity(groupId) : 0}`;
-    if (metaNodes[1]) metaNodes[1].textContent = `${Math.min(scannedIds.length, quantity)} von ${quantity} gescannt`;
+    if (metaNodes[1]) metaNodes[1].textContent = `Standardpreis: ${defaultUnitPrice !== null ? Utils.formatEuro(defaultUnitPrice) : '–'}`;
+    if (metaNodes[2]) metaNodes[2].textContent = `${Math.min(scannedIds.length, quantity)} von ${quantity} gescannt`;
+    const totalNode = row.querySelector('.order-position-total');
+    if (totalNode) totalNode.textContent = effectiveUnitPrice !== null ? Utils.formatEuro(effectiveUnitPrice * quantity) : '–';
   },
 
   collectPositionsFromEditor() {
@@ -7631,6 +7890,7 @@ const Orders = {
           groupId,
           quantity,
           scannedArticleIds: Array.isArray(scannedArticleIds) ? scannedArticleIds : [],
+          saleUnitPrice: OrderLogic.parsePrice(row.querySelector('.order-position-price')?.value),
         };
       })
       .filter(position => position.groupId);
@@ -7639,9 +7899,32 @@ const Orders = {
   updatePositionSummary() {
     const positions = OrderLogic.normalizePositions(this.collectPositionsFromEditor());
     const progress = OrderLogic.getProgress({ positions });
+    const pricing = OrderLogic.getPricing({ positions });
     document.getElementById('order-position-summary').textContent = positions.length
       ? `${positions.length} Positionen · ${progress.picked} von ${progress.total} Stück aktuell erfasst`
       : 'Noch keine Positionen gewählt.';
+    document.getElementById('order-pricing-summary').innerHTML = positions.length ? [
+      `<article class="order-pricing-card">
+        <span class="order-pricing-card__label">Listenwert</span>
+        <div class="order-pricing-card__value">${Utils.formatEuro(pricing.listTotal)}</div>
+        <div class="order-pricing-card__meta">Aus den hinterlegten Gruppenpreisen berechnet.</div>
+      </article>`,
+      `<article class="order-pricing-card">
+        <span class="order-pricing-card__label">Verkauf gesamt</span>
+        <div class="order-pricing-card__value">${Utils.formatEuro(pricing.total)}</div>
+        <div class="order-pricing-card__meta">Tatsächlicher Auftragswert aus den Positionspreisen.</div>
+      </article>`,
+      `<article class="order-pricing-card">
+        <span class="order-pricing-card__label">Rabatt / Abweichung</span>
+        <div class="order-pricing-card__value">${Utils.formatEuro(pricing.discount)}</div>
+        <div class="order-pricing-card__meta">${pricing.discount > 0 ? 'Unter dem Listenwert verkauft.' : pricing.discount < 0 ? 'Über dem Listenwert verkauft.' : 'Entspricht dem Listenwert.'}</div>
+      </article>`,
+      `<article class="order-pricing-card">
+        <span class="order-pricing-card__label">Ohne Preis</span>
+        <div class="order-pricing-card__value">${pricing.unpricedPositions}</div>
+        <div class="order-pricing-card__meta">Positionen ohne Gruppen- oder Verkaufspreis.</div>
+      </article>`,
+    ].join('') : '';
   },
 
   async save() {
@@ -7672,6 +7955,8 @@ const Orders = {
       orderStatus: document.getElementById('order-status').value,
       warehouseStatus: document.getElementById('order-warehouse-status').value,
       paymentStatus: document.getElementById('order-payment-status').value,
+      paymentMethod: document.getElementById('order-payment-method').value,
+      invoiceStatus: document.getElementById('order-invoice-status').value,
       pickupDate: document.getElementById('order-pickup-date').value,
       notes: document.getElementById('order-notes').value,
       positions,
@@ -7756,6 +8041,7 @@ const Orders = {
       ...selectedOrder,
       warehouseStatus: 'Übergeben',
       orderStatus: 'Abgeschlossen',
+      completedAt: Date.now(),
     }));
     Toast.success(`Auftrag ${selectedOrder.id} wurde als übergeben abgeschlossen.`);
     this.render();
@@ -8177,6 +8463,7 @@ const Warehouse = {
       ...order,
       warehouseStatus: 'Übergeben',
       orderStatus: 'Abgeschlossen',
+      completedAt: Date.now(),
     }));
     Toast.success(`Auftrag ${order.id} wurde als übergeben abgeschlossen.`);
     this.render();
@@ -8762,6 +9049,8 @@ const App = {
             Orders.closeDetail();
           } else if (State.currentView === 'warehouse' && State.selectedWarehouseOrderId) {
             Warehouse.closeDetail();
+          } else if (State.currentView === 'sold' && State.selectedSoldOrderId) {
+            Sold.closeDetail();
           } else if (GroupSelection._active) {
             GroupSelection.leave();
           } else if (InventorySelection._active) {

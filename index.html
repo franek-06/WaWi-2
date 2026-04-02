@@ -1206,6 +1206,26 @@
                   <label for="order-pickup-date">Abhol- / Lieferdatum</label>
                   <input type="date" id="order-pickup-date"/>
                 </div>
+                <div class="form-group">
+                  <label for="order-payment-method">Zahlungsart</label>
+                  <select id="order-payment-method">
+                    <option value="">Noch offen</option>
+                    <option value="Bar">Bar</option>
+                    <option value="Karte">Karte</option>
+                    <option value="SumUp">SumUp</option>
+                    <option value="Überweisung">Überweisung</option>
+                    <option value="Sonstiges">Sonstiges</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="order-invoice-status">Rechnungsstatus</label>
+                  <select id="order-invoice-status">
+                    <option value="Nicht erstellt">Nicht erstellt</option>
+                    <option value="Vorbereitet">Vorbereitet</option>
+                    <option value="Erstellt">Erstellt</option>
+                    <option value="Nicht nötig">Nicht nötig</option>
+                  </select>
+                </div>
                 <div class="form-group" style="flex:2;">
                   <label for="order-notes">Interne Notiz</label>
                   <textarea id="order-notes" rows="3" placeholder="Hinweise für Büro oder Warenausgang"></textarea>
@@ -1216,7 +1236,7 @@
                 <div class="order-positions-editor__header">
                   <div>
                     <h3>Auftragspositionen</h3>
-                    <p>Wähle die passende Artikelgruppe und lege fest, wie viele Stück gesucht werden sollen.</p>
+                    <p>Wähle die passende Artikelgruppe, lege die Menge fest und trage den tatsächlichen Verkaufspreis pro Stück ein.</p>
                   </div>
                   <button class="btn btn-outline btn-sm" id="btn-order-add-position" type="button">
                     <i class="fa-solid fa-plus"></i>
@@ -1227,6 +1247,7 @@
               </section>
 
               <div id="order-position-summary" class="order-position-summary"></div>
+              <div id="order-pricing-summary" class="order-pricing-summary"></div>
 
               <div class="form-actions">
                 <button type="submit" class="btn btn-primary" id="btn-save-order">
@@ -1382,56 +1403,130 @@
     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     <div id="view-sold" class="view hidden">
 
-      <!-- Gewinn-Zusammenfassung -->
-      <div class="sold-summary-bar">
-        <div class="sold-summary-item">
-          <span class="sold-summary-label">
-            <i class="fa-solid fa-cart-shopping"></i> Einkauf gesamt
-          </span>
-          <span class="sold-summary-value" id="sum-purchase">0 â‚¬</span>
+      <section class="order-summary-grid">
+        <div class="order-summary-card">
+          <div class="order-summary-card__icon order-summary-card__icon--blue">
+            <i class="fa-solid fa-file-invoice-dollar"></i>
+          </div>
+          <div>
+            <div class="order-summary-card__value" id="sold-stat-orders">0</div>
+            <div class="order-summary-card__label">Abgeschlossene Aufträge</div>
+          </div>
         </div>
-        <div class="sold-summary-item">
-          <span class="sold-summary-label">
-            <i class="fa-solid fa-handshake"></i> Verkauf gesamt
-          </span>
-          <span class="sold-summary-value" id="sum-revenue">0 â‚¬</span>
+        <div class="order-summary-card">
+          <div class="order-summary-card__icon order-summary-card__icon--green">
+            <i class="fa-solid fa-euro-sign"></i>
+          </div>
+          <div>
+            <div class="order-summary-card__value" id="sold-stat-revenue">0 €</div>
+            <div class="order-summary-card__label">Verkauf gesamt</div>
+          </div>
         </div>
-        <div class="sold-summary-item">
-          <span class="sold-summary-label">
-            <i class="fa-solid fa-chart-line"></i> Gewinn / Verlust
-          </span>
-          <span class="profit-value" id="sum-profit">0 â‚¬</span>
+        <div class="order-summary-card">
+          <div class="order-summary-card__icon order-summary-card__icon--orange">
+            <i class="fa-solid fa-credit-card"></i>
+          </div>
+          <div>
+            <div class="order-summary-card__value" id="sold-stat-paid">0</div>
+            <div class="order-summary-card__label">Bezahlt</div>
+          </div>
         </div>
-      </div>
+        <div class="order-summary-card">
+          <div class="order-summary-card__icon order-summary-card__icon--blue">
+            <i class="fa-solid fa-receipt"></i>
+          </div>
+          <div>
+            <div class="order-summary-card__value" id="sold-stat-invoiced">0</div>
+            <div class="order-summary-card__label">Rechnung erstellt</div>
+          </div>
+        </div>
+      </section>
 
-      <!-- Suchfeld + Zeitraum-Filter -->
       <div class="view-toolbar">
         <div class="toolbar-search">
           <i class="fa-solid fa-magnifying-glass"></i>
           <input type="search" id="sold-search"
-                 placeholder="Verkaufte Artikel suchen â€¦"
-                 aria-label="Verkaufte Artikel durchsuchen"/>
+                 placeholder="Abgeschlossene Aufträge suchen …"
+                 aria-label="Abgeschlossene Aufträge durchsuchen"/>
         </div>
         <div class="toolbar-filters">
-          <select id="sold-period-preset" aria-label="Zeitraum wÃ¤hlen">
-            <option value="">Alle ZeitrÃ¤ume</option>
+          <select id="sold-period-preset" aria-label="Zeitraum wählen">
+            <option value="">Alle Zeiträume</option>
             <option value="week">Diese Woche</option>
             <option value="month">Dieser Monat</option>
             <option value="quarter">Dieses Quartal</option>
             <option value="year">Dieses Jahr</option>
             <option value="custom">Benutzerdefiniert</option>
           </select>
+          <select id="sold-filter-payment-status" aria-label="Nach Zahlungsstatus filtern">
+            <option value="">Alle Zahlungsstatus</option>
+            <option value="Offen">Offen</option>
+            <option value="Teilbezahlt">Teilbezahlt</option>
+            <option value="Bezahlt">Bezahlt</option>
+          </select>
+          <select id="sold-filter-invoice-status" aria-label="Nach Rechnungsstatus filtern">
+            <option value="">Alle Rechnungsstatus</option>
+            <option value="Nicht erstellt">Nicht erstellt</option>
+            <option value="Vorbereitet">Vorbereitet</option>
+            <option value="Erstellt">Erstellt</option>
+            <option value="Nicht nötig">Nicht nötig</option>
+          </select>
           <div id="sold-date-range-wrapper"
                style="display:none;align-items:center;gap:6px;flex-wrap:wrap;">
-            <input type="date" id="sold-date-from" aria-label="Verkaufsdatum von"/>
-            <span style="color:var(--color-muted);font-weight:600;">â€“</span>
-            <input type="date" id="sold-date-to"   aria-label="Verkaufsdatum bis"/>
+            <input type="date" id="sold-date-from" aria-label="Abschlussdatum von"/>
+            <span style="color:var(--color-muted);font-weight:600;">–</span>
+            <input type="date" id="sold-date-to" aria-label="Abschlussdatum bis"/>
           </div>
         </div>
       </div>
 
-      <!-- Karten-Container -->
-      <div id="sold-container" class="cards-grid"></div>
+      <div class="sold-layout">
+        <section class="sold-list-panel">
+          <div id="sold-orders-list"></div>
+        </section>
+
+        <section class="sold-detail-panel">
+          <div id="sold-empty-state" class="empty-state">
+            <i class="fa-solid fa-handshake"></i>
+            <p>Wähle links einen abgeschlossenen Auftrag aus, um Preise, Zahlung und Abschlussdetails zu sehen.</p>
+          </div>
+
+          <div id="sold-detail-shell" class="hidden">
+            <div class="sold-detail-header">
+              <div>
+                <span class="detail-eyebrow" id="sold-detail-order-id">Verkauft</span>
+                <h2 id="sold-detail-customer">Kein Auftrag ausgewählt</h2>
+                <div id="sold-detail-statuses" class="status-pill-row"></div>
+              </div>
+              <div class="sold-detail-header__actions">
+                <button class="btn btn-ghost btn-sm" id="btn-sold-back" type="button">
+                  <i class="fa-solid fa-arrow-left"></i>
+                  Zurück
+                </button>
+                <button class="btn btn-outline btn-sm" id="btn-sold-open-order" type="button">
+                  <i class="fa-solid fa-up-right-from-square"></i>
+                  Im Auftrag öffnen
+                </button>
+              </div>
+            </div>
+
+            <div id="sold-detail-meta" class="sold-detail-meta"></div>
+            <div id="sold-detail-summary" class="sold-detail-summary"></div>
+            <div id="sold-detail-positions" class="sold-detail-positions"></div>
+
+            <section class="sold-detail-section">
+              <div class="sold-detail-section__header">
+                <h3>Schnittstellen später</h3>
+                <p>Hier docken SumUp und easybill später an, ohne dass der Warenausgang Preise sehen muss.</p>
+              </div>
+              <div class="sold-interface-grid">
+                <article class="sold-interface-card" id="sold-sumup-card"></article>
+                <article class="sold-interface-card" id="sold-easybill-card"></article>
+              </div>
+            </section>
+          </div>
+        </section>
+      </div>
 
     </div>
     <!-- â”€â”€ ENDE VIEW: VERKAUFT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->

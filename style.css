@@ -2984,6 +2984,7 @@ tr[data-id].is-selected > td {
 
 .orders-layout,
 .warehouse-layout,
+.sold-layout,
 .admin-grid {
   display: grid;
   grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.3fr);
@@ -2995,6 +2996,8 @@ tr[data-id].is-selected > td {
 .orders-detail-panel,
 .warehouse-list-panel,
 .warehouse-detail-panel,
+.sold-list-panel,
+.sold-detail-panel,
 .admin-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -3003,12 +3006,14 @@ tr[data-id].is-selected > td {
 }
 
 .orders-list-panel,
-.warehouse-list-panel {
+.warehouse-list-panel,
+.sold-list-panel {
   padding: 14px;
 }
 
 .orders-detail-panel,
 .warehouse-detail-panel,
+.sold-detail-panel,
 .admin-card {
   padding: 20px;
 }
@@ -3064,6 +3069,7 @@ tr[data-id].is-selected > td {
 .warehouse-order-card__title,
 .warehouse-detail-header h2,
 .order-detail-header h2,
+.sold-detail-header h2,
 .admin-card__header h3 {
   margin-top: 4px;
   font-size: 1.2rem;
@@ -3147,6 +3153,7 @@ tr[data-id].is-selected > td {
 
 .order-detail-header,
 .warehouse-detail-header,
+.sold-detail-header,
 .admin-card__header {
   display: flex;
   align-items: flex-start;
@@ -3156,6 +3163,7 @@ tr[data-id].is-selected > td {
 }
 
 .order-detail-header__actions,
+.sold-detail-header__actions,
 .warehouse-detail-actions {
   display: flex;
   flex-wrap: wrap;
@@ -3190,7 +3198,7 @@ tr[data-id].is-selected > td {
 
 .order-position-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) 140px 150px auto;
+  grid-template-columns: minmax(0, 1.55fr) 120px 170px 150px 150px auto;
   gap: 12px;
   align-items: end;
   padding: 12px;
@@ -3208,6 +3216,18 @@ tr[data-id].is-selected > td {
   font-size: var(--font-size-xs);
 }
 
+.order-position-total {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
 .order-position-summary {
   margin-top: 14px;
   padding: 14px 16px;
@@ -3218,8 +3238,46 @@ tr[data-id].is-selected > td {
   font-size: var(--font-size-sm);
 }
 
+.order-pricing-summary {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.order-pricing-card {
+  padding: 14px 16px;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.order-pricing-card__label {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.order-pricing-card__value {
+  font-size: var(--font-size-lg);
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.order-pricing-card__meta {
+  margin-top: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
 .warehouse-order-list,
 .warehouse-positions-list,
+.sold-order-list,
 .admin-list {
   display: flex;
   flex-direction: column;
@@ -3239,6 +3297,211 @@ tr[data-id].is-selected > td {
 .warehouse-order-card.is-active {
   border-color: var(--color-primary);
   box-shadow: var(--shadow-sm);
+}
+
+.sold-order-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  padding: 14px;
+  background: var(--color-bg);
+  cursor: pointer;
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+
+.sold-order-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.sold-order-card.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  box-shadow: var(--shadow-md);
+}
+
+.sold-order-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sold-order-card__meta {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.sold-order-card__total {
+  text-align: right;
+}
+
+.sold-order-card__total-label {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.sold-order-card__total-value {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--font-size-lg);
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.sold-order-card__footer {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sold-order-card__date {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.sold-detail-meta,
+.sold-detail-summary,
+.sold-interface-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.sold-detail-meta {
+  margin-bottom: 16px;
+}
+
+.sold-detail-section {
+  margin-top: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.sold-detail-section__header {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.sold-detail-section__header h3 {
+  margin-bottom: 4px;
+}
+
+.sold-detail-section__header p {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.sold-meta-card,
+.sold-summary-card,
+.sold-interface-card {
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  background: var(--color-bg);
+}
+
+.sold-meta-card__label,
+.sold-summary-card__label,
+.sold-interface-card__label {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.sold-meta-card__value,
+.sold-summary-card__value {
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.sold-summary-card__value--large {
+  font-size: var(--font-size-xl);
+  font-weight: 800;
+}
+
+.sold-meta-card__sub,
+.sold-summary-card__sub,
+.sold-interface-card p {
+  margin-top: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.sold-detail-positions {
+  margin-top: 16px;
+}
+
+.sold-position-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sold-position-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) 110px 150px 150px 150px;
+  gap: 12px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.sold-position-row__title {
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.sold-position-row__sub {
+  margin-top: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.sold-position-row__metric-label {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.sold-position-row__metric-value {
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.sold-interface-card strong {
+  display: block;
+  font-size: var(--font-size-base);
+  color: var(--color-text);
 }
 
 .warehouse-detail-progress {
@@ -3680,22 +3943,26 @@ body.permission-warehouse #topbar-new-article-btn {
 @media (max-width: 1100px) {
   .orders-layout,
   .warehouse-layout,
+  .sold-layout,
   .admin-grid {
     grid-template-columns: 1fr;
   }
 
   .orders-layout .orders-detail-panel,
-  .warehouse-layout .warehouse-detail-panel {
+  .warehouse-layout .warehouse-detail-panel,
+  .sold-layout .sold-detail-panel {
     display: none;
   }
 
   .orders-layout.show-detail-mobile .orders-list-panel,
-  .warehouse-layout.show-detail-mobile .warehouse-list-panel {
+  .warehouse-layout.show-detail-mobile .warehouse-list-panel,
+  .sold-layout.show-detail-mobile .sold-list-panel {
     display: none;
   }
 
   .orders-layout.show-detail-mobile .orders-detail-panel,
-  .warehouse-layout.show-detail-mobile .warehouse-detail-panel {
+  .warehouse-layout.show-detail-mobile .warehouse-detail-panel,
+  .sold-layout.show-detail-mobile .sold-detail-panel {
     display: block;
   }
 
@@ -3708,12 +3975,14 @@ body.permission-warehouse #topbar-new-article-btn {
 @media (max-width: 820px) {
   .order-detail-header,
   .warehouse-detail-header,
+  .sold-detail-header,
   .admin-card__header,
   .order-positions-editor__header {
     flex-direction: column;
   }
 
-  .order-position-row {
+  .order-position-row,
+  .sold-position-row {
     grid-template-columns: 1fr;
   }
 
