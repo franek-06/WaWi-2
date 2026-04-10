@@ -2091,7 +2091,16 @@ const DymoManager = {
         if (typeof label?.isValidLabel === 'function' && !label.isValidLabel()) {
           throw new Error(`DYMO-Label fuer Artikel ${article.id} ist ungueltig.`);
         }
-        framework.printLabel(printer.name, this._buildPrintParamsXml(), labelXml, '');
+        if (typeof label?.print === 'function') {
+          label.print(printer.name, this._buildPrintParamsXml(), '');
+        } else {
+          framework.printLabel(
+            printer.name,
+            this._buildPrintParamsXml(),
+            typeof label?.getLabelXml === 'function' ? label.getLabelXml() : labelXml,
+            ''
+          );
+        }
         printedCount++;
       }
       return { ok: true, count: printedCount, printerName };
