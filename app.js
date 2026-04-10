@@ -1897,6 +1897,216 @@ const QRManager = {
   },
 };
 
+const DymoManager = {
+  LABEL_WIDTH : 2835,
+  LABEL_HEIGHT: 3969,
+  _initialized: false,
+
+  init() {
+    const framework = window.dymo?.label?.framework;
+    if (!framework) return false;
+    if (this._initialized) return true;
+    try {
+      framework.init();
+      this._initialized = true;
+      return true;
+    } catch (error) {
+      console.error('DYMO init failed:', error);
+      return false;
+    }
+  },
+
+  _getFramework() {
+    const framework = window.dymo?.label?.framework;
+    if (!framework) {
+      throw new Error('DYMO Connect Framework ist nicht verfuegbar.');
+    }
+    if (!this.init()) {
+      throw new Error('DYMO Connect konnte nicht initialisiert werden.');
+    }
+    return framework;
+  },
+
+  _getPrinter(framework) {
+    const printers = framework.getPrinters();
+    const labelWriters = Array.isArray(printers)
+      ? printers.filter(printer => printer?.printerType === 'LabelWriterPrinter')
+      : [];
+    const connectedPrinter = labelWriters.find(printer => printer?.isConnected !== false);
+    const printer = connectedPrinter || labelWriters[0] || null;
+    if (!printer?.name) {
+      throw new Error('Kein verbundener DYMO LabelWriter gefunden.');
+    }
+    return printer;
+  },
+
+  _buildSecondaryLine(article) {
+    return [article?.manufacturer, article?.model]
+      .map(value => String(value ?? '').trim())
+      .filter(Boolean)
+      .join(' ');
+  },
+
+  _buildPrintParamsXml() {
+    return `<?xml version="1.0" encoding="utf-8"?>
+<LabelWriterPrintParams>
+  <Copies>1</Copies>
+</LabelWriterPrintParams>`;
+  },
+
+  _buildLabelXml(article, qrImageBase64) {
+    const articleId = Utils.escHtml(String(article?.id ?? '').trim());
+    const secondaryLine = Utils.escHtml(this._buildSecondaryLine(article));
+    const imageBase64 = String(qrImageBase64 ?? '').trim();
+    return `<?xml version="1.0" encoding="utf-8"?>
+<DieCutLabel Version="8.0" Units="twips">
+  <PaperOrientation>Portrait</PaperOrientation>
+  <Id>ArticleQr50x70</Id>
+  <PaperName>MoebelWawi 50x70</PaperName>
+  <DrawCommands>
+    <RoundRectangle X="0" Y="0" Width="${this.LABEL_WIDTH}" Height="${this.LABEL_HEIGHT}" Rx="180" Ry="180" />
+  </DrawCommands>
+  <ObjectInfo>
+    <ImageObject>
+      <Name>QR_IMAGE</Name>
+      <ForeColor Alpha="255" Red="0" Green="0" Blue="0" />
+      <BackColor Alpha="0" Red="255" Green="255" Blue="255" />
+      <LinkedObjectName />
+      <Rotation>Rotation0</Rotation>
+      <IsMirrored>False</IsMirrored>
+      <IsVariable>True</IsVariable>
+      <Image>${imageBase64}</Image>
+      <ScaleMode>Uniform</ScaleMode>
+      <HorizontalAlignment>Center</HorizontalAlignment>
+      <VerticalAlignment>Middle</VerticalAlignment>
+    </ImageObject>
+    <Bounds X="300" Y="180" Width="2235" Height="2235" />
+  </ObjectInfo>
+  <ObjectInfo>
+    <TextObject>
+      <Name>ARTICLE_ID</Name>
+      <ForeColor Alpha="255" Red="0" Green="0" Blue="0" />
+      <BackColor Alpha="0" Red="255" Green="255" Blue="255" />
+      <LinkedObjectName />
+      <Rotation>Rotation0</Rotation>
+      <IsMirrored>False</IsMirrored>
+      <IsVariable>True</IsVariable>
+      <HorizontalAlignment>Center</HorizontalAlignment>
+      <VerticalAlignment>Middle</VerticalAlignment>
+      <TextFitMode>ShrinkToFit</TextFitMode>
+      <UseFullFontHeight>True</UseFullFontHeight>
+      <Verticalized>False</Verticalized>
+      <StyledText>
+        <Element>
+          <String>${articleId}</String>
+          <Attributes>
+            <Font Family="Arial" Size="18" Bold="True" Italic="False" Underline="False" Strikeout="False" />
+            <ForeColor Alpha="255" Red="0" Green="0" Blue="0" />
+          </Attributes>
+        </Element>
+      </StyledText>
+    </TextObject>
+    <Bounds X="180" Y="2515" Width="2475" Height="420" />
+  </ObjectInfo>
+  <ObjectInfo>
+    <TextObject>
+      <Name>ARTICLE_LINE</Name>
+      <ForeColor Alpha="255" Red="0" Green="0" Blue="0" />
+      <BackColor Alpha="0" Red="255" Green="255" Blue="255" />
+      <LinkedObjectName />
+      <Rotation>Rotation0</Rotation>
+      <IsMirrored>False</IsMirrored>
+      <IsVariable>True</IsVariable>
+      <HorizontalAlignment>Center</HorizontalAlignment>
+      <VerticalAlignment>Top</VerticalAlignment>
+      <TextFitMode>ShrinkToFit</TextFitMode>
+      <UseFullFontHeight>True</UseFullFontHeight>
+      <Verticalized>False</Verticalized>
+      <StyledText>
+        <Element>
+          <String>${secondaryLine}</String>
+          <Attributes>
+            <Font Family="Arial" Size="11" Bold="False" Italic="False" Underline="False" Strikeout="False" />
+            <ForeColor Alpha="255" Red="0" Green="0" Blue="0" />
+          </Attributes>
+        </Element>
+      </StyledText>
+    </TextObject>
+    <Bounds X="180" Y="2960" Width="2475" Height="520" />
+  </ObjectInfo>
+</DieCutLabel>`;
+  },
+
+  _createQrImageBase64(text, size = 360) {
+    if (typeof QRCode === 'undefined') {
+      throw new Error('QRCode-Bibliothek ist noch nicht geladen.');
+    }
+    const host = document.createElement('div');
+    host.style.cssText = `position:fixed;left:-10000px;top:-10000px;width:${size}px;height:${size}px;pointer-events:none;`;
+    document.body.appendChild(host);
+    try {
+      new QRCode(host, {
+        text,
+        width        : size,
+        height       : size,
+        colorDark    : '#000000',
+        colorLight   : '#ffffff',
+        correctLevel : QRCode.CorrectLevel.M,
+      });
+      const canvas = host.querySelector('canvas');
+      if (canvas?.toDataURL) {
+        return canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+      }
+      const imgSrc = host.querySelector('img')?.getAttribute('src') ?? '';
+      const match = imgSrc.match(/^data:image\/(?:png|gif|jpeg|jpg);base64,(.+)$/i);
+      if (match?.[1]) return match[1];
+      throw new Error('QR-Code-Bild konnte nicht fuer DYMO erzeugt werden.');
+    } finally {
+      host.remove();
+    }
+  },
+
+  _extractErrorMessage(error) {
+    const rawMessage = String(error?.message ?? error ?? '').trim();
+    return rawMessage || 'Unbekannter DYMO-Fehler.';
+  },
+
+  async printArticles(articles) {
+    const list = Array.isArray(articles) ? articles.filter(Boolean) : [];
+    if (!list.length) return { ok: true, count: 0, printerName: '' };
+    let printedCount = 0;
+    let printerName = '';
+    try {
+      const framework = this._getFramework();
+      const printer = this._getPrinter(framework);
+      printerName = printer.name;
+      for (const article of list) {
+        const qrText = QRManager.getArticleQrText(article);
+        if (!qrText) {
+          throw new Error(`Fuer Artikel ${article.id} ist kein QR-Inhalt verfuegbar.`);
+        }
+        const qrImageBase64 = this._createQrImageBase64(qrText);
+        const labelXml = this._buildLabelXml(article, qrImageBase64);
+        const label = framework.openLabelXml(labelXml);
+        if (typeof label?.isValidLabel === 'function' && !label.isValidLabel()) {
+          throw new Error(`DYMO-Label fuer Artikel ${article.id} ist ungueltig.`);
+        }
+        framework.printLabel(printer.name, this._buildPrintParamsXml(), labelXml, '');
+        printedCount++;
+      }
+      return { ok: true, count: printedCount, printerName };
+    } catch (error) {
+      console.error('DYMO print failed:', error);
+      return {
+        ok         : false,
+        printedCount,
+        printerName,
+        message    : this._extractErrorMessage(error),
+      };
+    }
+  },
+};
+
 const ScanResolver = {
 
   resolve(rawValue) {
@@ -2437,6 +2647,30 @@ const Dashboard = {
     if (qrArticle) QRManager.generate('art-qr-preview', QRManager.getArticleQrText(qrArticle), 128);
   },
 
+  isDymoAutoPrintEnabled() {
+    const checkbox = document.getElementById('art-dymo-auto-print');
+    return checkbox ? checkbox.checked : true;
+  },
+
+  resetDymoAutoPrintOption() {
+    const checkbox = document.getElementById('art-dymo-auto-print');
+    if (checkbox) checkbox.checked = true;
+  },
+
+  async autoPrintArticlesOnDymo(articles) {
+    const list = Array.isArray(articles) ? articles.filter(Boolean) : [];
+    if (!list.length) return;
+    const result = await DymoManager.printArticles(list);
+    if (!result.ok) {
+      const prefix = result.printedCount
+        ? `${result.printedCount} DYMO-Etikett(en) wurden gesendet, danach trat ein Fehler auf`
+        : 'DYMO-Autodruck nicht moeglich';
+      Toast.warning(result.message ? `${prefix}: ${result.message}` : prefix + '.');
+      return;
+    }
+    Toast.success(`${result.count} DYMO-Etikett(e) an ${result.printerName} gesendet.`);
+  },
+
   applyArticleListingLinkToGroup() {
     const listingInput = document.getElementById('art-listing-link');
     const listingLink  = listingInput.value.trim();
@@ -2482,6 +2716,7 @@ const Dashboard = {
     const condEl = document.querySelector('input[name="art-condition"]:checked');
     const editId = State.editingArticleId;
     const qty    = parseInt(document.getElementById('art-quantity').value) || 1;
+    const dymoAutoPrintEnabled = this.isDymoAutoPrintEnabled();
     const selectedGroupId = String(document.getElementById('art-group-assign').value ?? '').trim();
     const storedEditGroupId = String(document.getElementById('article-edit-group-id').value ?? '').trim();
     const currentArticleGroupId = editId
@@ -2565,10 +2800,16 @@ const Dashboard = {
           Toast.success('Artikel ' + editId + ' aktualisiert.');
         }
       }
+      if (dymoAutoPrintEnabled && dupIds.length) {
+        await this.autoPrintArticlesOnDymo(
+          dupIds.map(id => DB.getArticleById(id)).filter(Boolean)
+        );
+      }
       document.getElementById('art-id-display').value         = saved.id;
       document.getElementById('art-qr-section').style.display = 'block';
       State.editingArticleId = saved.id;
       this.refreshArticleQrPreview(saved);
+      this.resetDymoAutoPrintOption();
       this.renderStats();
       const savedId = saved.id;
       setTimeout(() => {
@@ -2617,6 +2858,12 @@ const Dashboard = {
     } else {
       Toast.success('Artikel ' + firstId + ' gespeichert Â· Gruppe "' + Utils.escHtml(group.name) + '".');
     }
+    if (dymoAutoPrintEnabled) {
+      await this.autoPrintArticlesOnDymo(
+        articleIds.map(id => DB.getArticleById(id)).filter(Boolean)
+      );
+    }
+    this.resetDymoAutoPrintOption();
     this.renderStats();
     } catch (err) {
       console.error('saveArticle failed:', err);
@@ -2632,6 +2879,7 @@ const Dashboard = {
     document.getElementById('sold-fields-article').style.display    = 'none';
     document.getElementById('shipping-cost-wrapper').style.display  = 'none';
     document.getElementById('art-qr-preview').innerHTML     = '';
+    this.resetDymoAutoPrintOption();
     document.getElementById('article-edit-group-id').value  = '';
     document.querySelectorAll('.condition-btn')
       .forEach(l => l.classList.remove('selected'));
@@ -9084,6 +9332,7 @@ const App = {
     Tools.init();
     Groups.init();
     QRScanner.init();
+    DymoManager.init();
     DB.onChange(() => this.queueRealtimeSync());
 
     Router.navigate(AccessControl.getFirstAvailableView() || 'dashboard');

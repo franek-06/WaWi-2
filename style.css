@@ -516,6 +516,25 @@ select { cursor: pointer; }
   font-weight: 600;
 }
 
+.dymo-auto-print-option {
+  margin-top: -4px;
+}
+
+.dymo-auto-print-option .checkbox-label {
+  align-items: flex-start;
+}
+
+.dymo-auto-print-option input[type="checkbox"] {
+  margin-top: 1px;
+}
+
+.dymo-auto-print-hint {
+  padding-left: 26px;
+  color:        var(--color-muted);
+  font-size:    var(--font-size-xs);
+  line-height:  1.45;
+}
+
 input[type="checkbox"] {
   width:        18px;
   height:       18px;

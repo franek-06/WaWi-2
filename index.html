@@ -11,6 +11,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
           defer></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+  <script src="https://qajavascriptsdktests.azurewebsites.net/JavaScript/dymo.connect.framework.js"
+          defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"
           defer></script>
 
@@ -397,9 +399,19 @@
                   (&gt;1 = Bulk)
                 </span>
               </label>
-              <input type="number" id="art-quantity"
-                     value="1" min="1" max="999"/>
-              <!-- StÃ¼ckzahl-Hinweis wird per JS eingefÃ¼gt -->
+               <input type="number" id="art-quantity"
+                      value="1" min="1" max="999"/>
+               <!-- StÃ¼ckzahl-Hinweis wird per JS eingefÃ¼gt -->
+             </div>
+           </div>
+
+          <div class="form-group dymo-auto-print-option">
+            <label class="checkbox-label" for="art-dymo-auto-print">
+              <input type="checkbox" id="art-dymo-auto-print" checked/>
+              DYMO-Etiketten automatisch drucken
+            </label>
+            <div class="dymo-auto-print-hint">
+              Haken entfernen, wenn der automatische DYMO-Druck fuer diesen Speichervorgang aus bleiben soll.
             </div>
           </div>
 
