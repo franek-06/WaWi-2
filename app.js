@@ -2002,25 +2002,10 @@ const DymoManager = {
     }
   },
 
-  _looksLikeUrl(value) {
-    return /^https?:\/\//i.test(String(value ?? '').trim());
-  },
-
-  _buildLabelXml(article, qrText) {
+  _buildLabelXml(article, qrImageBase64) {
     const primaryLine = Utils.escHtml(String(article?.id ?? '').trim() || '-');
     const secondaryLine = Utils.escHtml(this._buildSecondaryLine(article));
-    const qrValue = String(qrText ?? '').trim();
-    const qrType = this._looksLikeUrl(qrValue) ? 'QRCodeWebPage' : 'QRCodeText';
-    const qrData = Utils.escHtml(this._looksLikeUrl(qrValue) ? `URL:${qrValue}` : qrValue);
-    const qrExtra = this._looksLikeUrl(qrValue)
-      ? `
-          <WebAddressDataHolder>
-            <MultiDataString>
-              <DataString></DataString>
-              <DataString>${Utils.escHtml(qrValue)}</DataString>
-            </MultiDataString>
-          </WebAddressDataHolder>`
-      : '';
+    const qrImage = Utils.escHtml(String(qrImageBase64 ?? '').trim());
 
     return `<?xml version="1.0" encoding="utf-8"?>
 <DesktopLabel Version="1">
@@ -2136,8 +2121,8 @@ const DymoManager = {
             </Size>
           </ObjectLayout>
         </TextObject>
-        <QRCodeObject>
-          <Name>QRCodeObject0</Name>
+        <ImageObject>
+          <Name>ImageObject0</Name>
           <Brushes>
             <BackgroundBrush>
               <SolidColorBrush>
@@ -2167,14 +2152,10 @@ const DymoManager = {
           <Margin>
             <DYMOThickness Left="0" Top="0" Right="0" Bottom="0" />
           </Margin>
-          <BarcodeFormat>QRCode</BarcodeFormat>
-          <Data>
-            <DataString>${qrData}</DataString>
-          </Data>
+          <Data>${qrImage}</Data>
+          <ScaleMode>Uniform</ScaleMode>
           <HorizontalAlignment>Center</HorizontalAlignment>
           <VerticalAlignment>Middle</VerticalAlignment>
-          <Size>AutoFit</Size>
-          <EQRCodeType>${qrType}</EQRCodeType>${qrExtra}
           <ObjectLayout>
             <DYMOPoint>
               <X>0.763646</X>
@@ -2185,7 +2166,7 @@ const DymoManager = {
               <Height>1.015</Height>
             </Size>
           </ObjectLayout>
-        </QRCodeObject>
+        </ImageObject>
       </LabelObjects>
     </DynamicLayoutManager>
   </DYMOLabel>
@@ -2216,15 +2197,16 @@ const DymoManager = {
         if (!qrText) {
           throw new Error(`Fuer Artikel ${article.id} ist kein QR-Inhalt verfuegbar.`);
         }
-        const labelXml = this._buildLabelXml(article, qrText);
+        const qrImageBase64 = await this._createQrImageBase64(qrText);
+        const labelXml = this._buildLabelXml(article, qrImageBase64);
         const label = framework.openLabelXml(labelXml);
         if (typeof label?.isValidLabel === 'function' && !label.isValidLabel()) {
           throw new Error(`DYMO-Label fuer Artikel ${article.id} ist ungueltig.`);
         }
         framework.printLabel(
           printer.name,
-          this._buildPrintParamsXml(),
-          typeof label?.getLabelXml === 'function' ? label.getLabelXml() : labelXml,
+          '',
+          labelXml,
           ''
         );
         printedCount++;
