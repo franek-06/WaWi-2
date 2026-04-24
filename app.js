@@ -1898,8 +1898,6 @@ const QRManager = {
 };
 
 const DymoManager = {
-  LABEL_WIDTH : 2835,
-  LABEL_HEIGHT: 3969,
   _initialized: false,
 
   init() {
@@ -1954,116 +1952,250 @@ const DymoManager = {
 </LabelWriterPrintParams>`;
   },
 
-  _buildLabelXml(article, qrImageBase64) {
+  _buildLabelXml(article, qrText) {
     const articleId = Utils.escHtml(String(article?.id ?? '').trim());
     const secondaryLine = Utils.escHtml(this._buildSecondaryLine(article));
-    const imageBase64 = String(qrImageBase64 ?? '').trim();
+    const qrValue = Utils.escHtml(String(qrText ?? '').trim());
     return `<?xml version="1.0" encoding="utf-8"?>
-<DieCutLabel Version="8.0" Units="twips">
-  <PaperOrientation>Portrait</PaperOrientation>
-  <Id>ArticleQr50x70</Id>
-  <PaperName>MoebelWawi 50x70</PaperName>
-  <DrawCommands>
-    <RoundRectangle X="0" Y="0" Width="${this.LABEL_WIDTH}" Height="${this.LABEL_HEIGHT}" Rx="180" Ry="180" />
-  </DrawCommands>
-  <ObjectInfo>
-    <ImageObject>
-      <Name>QR_IMAGE</Name>
-      <ForeColor Alpha="255" Red="0" Green="0" Blue="0" />
-      <BackColor Alpha="0" Red="255" Green="255" Blue="255" />
-      <LinkedObjectName />
-      <Rotation>Rotation0</Rotation>
-      <IsMirrored>False</IsMirrored>
-      <IsVariable>True</IsVariable>
-      <Image>${imageBase64}</Image>
-      <ScaleMode>Uniform</ScaleMode>
-      <HorizontalAlignment>Center</HorizontalAlignment>
-      <VerticalAlignment>Middle</VerticalAlignment>
-    </ImageObject>
-    <Bounds X="300" Y="180" Width="2235" Height="2235" />
-  </ObjectInfo>
-  <ObjectInfo>
-    <TextObject>
-      <Name>ARTICLE_ID</Name>
-      <ForeColor Alpha="255" Red="0" Green="0" Blue="0" />
-      <BackColor Alpha="0" Red="255" Green="255" Blue="255" />
-      <LinkedObjectName />
-      <Rotation>Rotation0</Rotation>
-      <IsMirrored>False</IsMirrored>
-      <IsVariable>True</IsVariable>
-      <HorizontalAlignment>Center</HorizontalAlignment>
-      <VerticalAlignment>Middle</VerticalAlignment>
-      <TextFitMode>ShrinkToFit</TextFitMode>
-      <UseFullFontHeight>True</UseFullFontHeight>
-      <Verticalized>False</Verticalized>
-      <StyledText>
-        <Element>
-          <String>${articleId}</String>
-          <Attributes>
-            <Font Family="Arial" Size="18" Bold="True" Italic="False" Underline="False" Strikeout="False" />
-            <ForeColor Alpha="255" Red="0" Green="0" Blue="0" />
-          </Attributes>
-        </Element>
-      </StyledText>
-    </TextObject>
-    <Bounds X="180" Y="2515" Width="2475" Height="420" />
-  </ObjectInfo>
-  <ObjectInfo>
-    <TextObject>
-      <Name>ARTICLE_LINE</Name>
-      <ForeColor Alpha="255" Red="0" Green="0" Blue="0" />
-      <BackColor Alpha="0" Red="255" Green="255" Blue="255" />
-      <LinkedObjectName />
-      <Rotation>Rotation0</Rotation>
-      <IsMirrored>False</IsMirrored>
-      <IsVariable>True</IsVariable>
-      <HorizontalAlignment>Center</HorizontalAlignment>
-      <VerticalAlignment>Top</VerticalAlignment>
-      <TextFitMode>ShrinkToFit</TextFitMode>
-      <UseFullFontHeight>True</UseFullFontHeight>
-      <Verticalized>False</Verticalized>
-      <StyledText>
-        <Element>
-          <String>${secondaryLine}</String>
-          <Attributes>
-            <Font Family="Arial" Size="11" Bold="False" Italic="False" Underline="False" Strikeout="False" />
-            <ForeColor Alpha="255" Red="0" Green="0" Blue="0" />
-          </Attributes>
-        </Element>
-      </StyledText>
-    </TextObject>
-    <Bounds X="180" Y="2960" Width="2475" Height="520" />
-  </ObjectInfo>
-</DieCutLabel>`;
-  },
-
-  _createQrImageBase64(text, size = 360) {
-    if (typeof QRCode === 'undefined') {
-      throw new Error('QRCode-Bibliothek ist noch nicht geladen.');
-    }
-    const host = document.createElement('div');
-    host.style.cssText = `position:fixed;left:-10000px;top:-10000px;width:${size}px;height:${size}px;pointer-events:none;`;
-    document.body.appendChild(host);
-    try {
-      new QRCode(host, {
-        text,
-        width        : size,
-        height       : size,
-        colorDark    : '#000000',
-        colorLight   : '#ffffff',
-        correctLevel : QRCode.CorrectLevel.M,
-      });
-      const canvas = host.querySelector('canvas');
-      if (canvas?.toDataURL) {
-        return canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
-      }
-      const imgSrc = host.querySelector('img')?.getAttribute('src') ?? '';
-      const match = imgSrc.match(/^data:image\/(?:png|gif|jpeg|jpg);base64,(.+)$/i);
-      if (match?.[1]) return match[1];
-      throw new Error('QR-Code-Bild konnte nicht fuer DYMO erzeugt werden.');
-    } finally {
-      host.remove();
-    }
+<DesktopLabel Version="1">
+  <DYMOLabel Version="3">
+    <Description>MoebelWawi DYMO Label</Description>
+    <Orientation>Portrait</Orientation>
+    <LabelName>MoebelWawi50x70</LabelName>
+    <InitialLength>0</InitialLength>
+    <BorderStyle>SolidLine</BorderStyle>
+    <DYMORect>
+      <DYMOPoint>
+        <X>0</X>
+        <Y>0</Y>
+      </DYMOPoint>
+      <Size>
+        <Width>1.9685</Width>
+        <Height>2.7559</Height>
+      </Size>
+    </DYMORect>
+    <BorderColor>
+      <SolidColorBrush>
+        <Color A="1" R="0" G="0" B="0"></Color>
+      </SolidColorBrush>
+    </BorderColor>
+    <BorderThickness>1</BorderThickness>
+    <Show_Border>False</Show_Border>
+    <DynamicLayoutManager>
+      <RotationBehavior>ClearObjects</RotationBehavior>
+      <LabelObjects>
+        <BarcodeObject>
+          <Name>QR_CODE</Name>
+          <Brushes>
+            <BackgroundBrush>
+              <SolidColorBrush>
+                <Color A="1" R="1" G="1" B="1"></Color>
+              </SolidColorBrush>
+            </BackgroundBrush>
+            <BorderBrush>
+              <SolidColorBrush>
+                <Color A="1" R="0" G="0" B="0"></Color>
+              </SolidColorBrush>
+            </BorderBrush>
+            <StrokeBrush>
+              <SolidColorBrush>
+                <Color A="1" R="0" G="0" B="0"></Color>
+              </SolidColorBrush>
+            </StrokeBrush>
+            <FillBrush>
+              <SolidColorBrush>
+                <Color A="1" R="0" G="0" B="0"></Color>
+              </SolidColorBrush>
+            </FillBrush>
+          </Brushes>
+          <Rotation>Rotation0</Rotation>
+          <OutlineThickness>1</OutlineThickness>
+          <IsOutlined>False</IsOutlined>
+          <BorderStyle>SolidLine</BorderStyle>
+          <Margin>
+            <DYMOThickness Left="0" Top="0" Right="0" Bottom="0" />
+          </Margin>
+          <BarcodeFormat>QRCode</BarcodeFormat>
+          <Data>
+            <MultiDataString>
+              <DataString></DataString>
+              <DataString>${qrValue}</DataString>
+            </MultiDataString>
+          </Data>
+          <HorizontalAlignment>Center</HorizontalAlignment>
+          <VerticalAlignment>Middle</VerticalAlignment>
+          <Size>Large</Size>
+          <TextPosition>None</TextPosition>
+          <FontInfo>
+            <FontName>Arial</FontName>
+            <FontSize>11</FontSize>
+            <IsBold>False</IsBold>
+            <IsItalic>False</IsItalic>
+            <IsUnderline>False</IsUnderline>
+            <FontBrush>
+              <SolidColorBrush>
+                <Color A="1" R="0" G="0" B="0"></Color>
+              </SolidColorBrush>
+            </FontBrush>
+          </FontInfo>
+          <ObjectLayout>
+            <DYMOPoint>
+              <X>0.18</X>
+              <Y>0.12</Y>
+            </DYMOPoint>
+            <Size>
+              <Width>1.60</Width>
+              <Height>1.60</Height>
+            </Size>
+          </ObjectLayout>
+        </BarcodeObject>
+        <TextObject>
+          <Name>ARTICLE_ID</Name>
+          <Brushes>
+            <BackgroundBrush>
+              <SolidColorBrush>
+                <Color A="0" R="1" G="1" B="1"></Color>
+              </SolidColorBrush>
+            </BackgroundBrush>
+            <BorderBrush>
+              <SolidColorBrush>
+                <Color A="1" R="0" G="0" B="0"></Color>
+              </SolidColorBrush>
+            </BorderBrush>
+            <StrokeBrush>
+              <SolidColorBrush>
+                <Color A="1" R="0" G="0" B="0"></Color>
+              </SolidColorBrush>
+            </StrokeBrush>
+            <FillBrush>
+              <SolidColorBrush>
+                <Color A="0" R="0" G="0" B="0"></Color>
+              </SolidColorBrush>
+            </FillBrush>
+          </Brushes>
+          <Rotation>Rotation0</Rotation>
+          <OutlineThickness>1</OutlineThickness>
+          <IsOutlined>False</IsOutlined>
+          <BorderStyle>SolidLine</BorderStyle>
+          <Margin>
+            <DYMOThickness Left="0" Top="0" Right="0" Bottom="0" />
+          </Margin>
+          <HorizontalAlignment>Center</HorizontalAlignment>
+          <VerticalAlignment>Middle</VerticalAlignment>
+          <FitMode>AlwaysFit</FitMode>
+          <IsVertical>False</IsVertical>
+          <FormattedText>
+            <FitMode>AlwaysFit</FitMode>
+            <HorizontalAlignment>Center</HorizontalAlignment>
+            <VerticalAlignment>Middle</VerticalAlignment>
+            <IsVertical>False</IsVertical>
+            <LineTextSpan>
+              <TextSpan>
+                <Text>${articleId}</Text>
+                <FontInfo>
+                  <FontName>Arial</FontName>
+                  <FontSize>12</FontSize>
+                  <IsBold>True</IsBold>
+                  <IsItalic>False</IsItalic>
+                  <IsUnderline>False</IsUnderline>
+                  <FontBrush>
+                    <SolidColorBrush>
+                      <Color A="1" R="0" G="0" B="0"></Color>
+                    </SolidColorBrush>
+                  </FontBrush>
+                </FontInfo>
+              </TextSpan>
+            </LineTextSpan>
+          </FormattedText>
+          <ObjectLayout>
+            <DYMOPoint>
+              <X>0.12</X>
+              <Y>1.82</Y>
+            </DYMOPoint>
+            <Size>
+              <Width>1.72</Width>
+              <Height>0.24</Height>
+            </Size>
+          </ObjectLayout>
+        </TextObject>
+        <TextObject>
+          <Name>ARTICLE_LINE</Name>
+          <Brushes>
+            <BackgroundBrush>
+              <SolidColorBrush>
+                <Color A="0" R="1" G="1" B="1"></Color>
+              </SolidColorBrush>
+            </BackgroundBrush>
+            <BorderBrush>
+              <SolidColorBrush>
+                <Color A="1" R="0" G="0" B="0"></Color>
+              </SolidColorBrush>
+            </BorderBrush>
+            <StrokeBrush>
+              <SolidColorBrush>
+                <Color A="1" R="0" G="0" B="0"></Color>
+              </SolidColorBrush>
+            </StrokeBrush>
+            <FillBrush>
+              <SolidColorBrush>
+                <Color A="0" R="0" G="0" B="0"></Color>
+              </SolidColorBrush>
+            </FillBrush>
+          </Brushes>
+          <Rotation>Rotation0</Rotation>
+          <OutlineThickness>1</OutlineThickness>
+          <IsOutlined>False</IsOutlined>
+          <BorderStyle>SolidLine</BorderStyle>
+          <Margin>
+            <DYMOThickness Left="0" Top="0" Right="0" Bottom="0" />
+          </Margin>
+          <HorizontalAlignment>Center</HorizontalAlignment>
+          <VerticalAlignment>Middle</VerticalAlignment>
+          <FitMode>AlwaysFit</FitMode>
+          <IsVertical>False</IsVertical>
+          <FormattedText>
+            <FitMode>AlwaysFit</FitMode>
+            <HorizontalAlignment>Center</HorizontalAlignment>
+            <VerticalAlignment>Middle</VerticalAlignment>
+            <IsVertical>False</IsVertical>
+            <LineTextSpan>
+              <TextSpan>
+                <Text>${secondaryLine}</Text>
+                <FontInfo>
+                  <FontName>Arial</FontName>
+                  <FontSize>8</FontSize>
+                  <IsBold>False</IsBold>
+                  <IsItalic>False</IsItalic>
+                  <IsUnderline>False</IsUnderline>
+                  <FontBrush>
+                    <SolidColorBrush>
+                      <Color A="1" R="0" G="0" B="0"></Color>
+                    </SolidColorBrush>
+                  </FontBrush>
+                </FontInfo>
+              </TextSpan>
+            </LineTextSpan>
+          </FormattedText>
+          <ObjectLayout>
+            <DYMOPoint>
+              <X>0.12</X>
+              <Y>2.12</Y>
+            </DYMOPoint>
+            <Size>
+              <Width>1.72</Width>
+              <Height>0.32</Height>
+            </Size>
+          </ObjectLayout>
+        </TextObject>
+      </LabelObjects>
+    </DynamicLayoutManager>
+  </DYMOLabel>
+  <LabelApplication>Blank</LabelApplication>
+  <DataTable>
+    <Columns></Columns>
+    <Rows></Rows>
+  </DataTable>
+</DesktopLabel>`;
   },
 
   _extractErrorMessage(error) {
@@ -2085,8 +2217,7 @@ const DymoManager = {
         if (!qrText) {
           throw new Error(`Fuer Artikel ${article.id} ist kein QR-Inhalt verfuegbar.`);
         }
-        const qrImageBase64 = this._createQrImageBase64(qrText);
-        const labelXml = this._buildLabelXml(article, qrImageBase64);
+        const labelXml = this._buildLabelXml(article, qrText);
         const label = framework.openLabelXml(labelXml);
         if (typeof label?.isValidLabel === 'function' && !label.isValidLabel()) {
           throw new Error(`DYMO-Label fuer Artikel ${article.id} ist ungueltig.`);
