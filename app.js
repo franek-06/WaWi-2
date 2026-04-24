@@ -2005,7 +2005,7 @@ const DymoManager = {
   _buildLabelXml() {
     return `<?xml version="1.0" encoding="utf-8"?>
 <DesktopLabel Version="1">
-  <DYMOLabel Version="4">
+  <DYMOLabel Version="3">
     <Description>DYMO Label</Description>
     <Orientation>Landscape</Orientation>
     <LabelName>StorageS0722440</LabelName>
@@ -2028,82 +2028,11 @@ const DymoManager = {
     </BorderColor>
     <BorderThickness>1</BorderThickness>
     <Show_Border>False</Show_Border>
-    <HasFixedLength>False</HasFixedLength>
-    <FixedLengthValue>0</FixedLengthValue>
     <DynamicLayoutManager>
       <RotationBehavior>ClearObjects</RotationBehavior>
       <LabelObjects>
         <TextObject>
-          <Name>ITextObject0</Name>
-          <Brushes>
-            <BackgroundBrush>
-              <SolidColorBrush>
-                <Color A="0" R="0" G="0" B="0"></Color>
-              </SolidColorBrush>
-            </BackgroundBrush>
-            <BorderBrush>
-              <SolidColorBrush>
-                <Color A="1" R="0" G="0" B="0"></Color>
-              </SolidColorBrush>
-            </BorderBrush>
-            <StrokeBrush>
-              <SolidColorBrush>
-                <Color A="1" R="0" G="0" B="0"></Color>
-              </SolidColorBrush>
-            </StrokeBrush>
-            <FillBrush>
-              <SolidColorBrush>
-                <Color A="0" R="0" G="0" B="0"></Color>
-              </SolidColorBrush>
-            </FillBrush>
-          </Brushes>
-          <Rotation>Rotation270</Rotation>
-          <OutlineThickness>1</OutlineThickness>
-          <IsOutlined>False</IsOutlined>
-          <BorderStyle>SolidLine</BorderStyle>
-          <Margin>
-            <DYMOThickness Left="0" Top="0" Right="0" Bottom="0" />
-          </Margin>
-          <HorizontalAlignment>Center</HorizontalAlignment>
-          <VerticalAlignment>Middle</VerticalAlignment>
-          <FitMode>AlwaysFit</FitMode>
-          <IsVertical>False</IsVertical>
-          <FormattedText>
-            <FitMode>AlwaysFit</FitMode>
-            <HorizontalAlignment>Center</HorizontalAlignment>
-            <VerticalAlignment>Middle</VerticalAlignment>
-            <IsVertical>False</IsVertical>
-            <LineTextSpan>
-              <TextSpan>
-                <Text>A-0000</Text>
-                <FontInfo>
-                  <FontName>Segoe UI Symbol</FontName>
-                  <FontSize>34</FontSize>
-                  <IsBold>True</IsBold>
-                  <IsItalic>False</IsItalic>
-                  <IsUnderline>False</IsUnderline>
-                  <FontBrush>
-                    <SolidColorBrush>
-                      <Color A="1" R="0" G="0" B="0"></Color>
-                    </SolidColorBrush>
-                  </FontBrush>
-                </FontInfo>
-              </TextSpan>
-            </LineTextSpan>
-          </FormattedText>
-          <ObjectLayout>
-            <DYMOPoint>
-              <X>0.18</X>
-              <Y>0.12</Y>
-            </DYMOPoint>
-            <Size>
-              <Width>0.82</Width>
-              <Height>1.78</Height>
-            </Size>
-          </ObjectLayout>
-        </TextObject>
-        <LineObject>
-          <Name>ILineObject0</Name>
+          <Name>TextObject2</Name>
           <Brushes>
             <BackgroundBrush>
               <SolidColorBrush>
@@ -2133,22 +2062,63 @@ const DymoManager = {
           <Margin>
             <DYMOThickness Left="0" Top="0" Right="0" Bottom="0" />
           </Margin>
-          <StrokeWidth>1</StrokeWidth>
-          <DashPattern>SolidLine</DashPattern>
-          <LineType>Vertical</LineType>
+          <HorizontalAlignment>Center</HorizontalAlignment>
+          <VerticalAlignment>Middle</VerticalAlignment>
+          <FitMode>AlwaysFit</FitMode>
+          <IsVertical>False</IsVertical>
+          <FormattedText>
+            <FitMode>AlwaysFit</FitMode>
+            <HorizontalAlignment>Center</HorizontalAlignment>
+            <VerticalAlignment>Middle</VerticalAlignment>
+            <IsVertical>False</IsVertical>
+            <LineTextSpan>
+              <TextSpan>
+                <Text>A-0000</Text>
+                <FontInfo>
+                  <FontName>Segoe UI</FontName>
+                  <FontSize>20</FontSize>
+                  <IsBold>True</IsBold>
+                  <IsItalic>False</IsItalic>
+                  <IsUnderline>False</IsUnderline>
+                  <FontBrush>
+                    <SolidColorBrush>
+                      <Color A="1" R="0" G="0" B="0"></Color>
+                    </SolidColorBrush>
+                  </FontBrush>
+                </FontInfo>
+              </TextSpan>
+            </LineTextSpan>
+            <LineTextSpan>
+              <TextSpan>
+                <Text>Hersteller Modell</Text>
+                <FontInfo>
+                  <FontName>Segoe UI</FontName>
+                  <FontSize>11.7</FontSize>
+                  <IsBold>False</IsBold>
+                  <IsItalic>False</IsItalic>
+                  <IsUnderline>False</IsUnderline>
+                  <FontBrush>
+                    <SolidColorBrush>
+                      <Color A="1" R="0" G="0" B="0"></Color>
+                    </SolidColorBrush>
+                  </FontBrush>
+                </FontInfo>
+              </TextSpan>
+            </LineTextSpan>
+          </FormattedText>
           <ObjectLayout>
             <DYMOPoint>
-              <X>0.93</X>
-              <Y>0.12</Y>
+              <X>0.22</X>
+              <Y>0.06416664</Y>
             </DYMOPoint>
             <Size>
-              <Width>0.06</Width>
-              <Height>1.78</Height>
+              <Width>2.334584</Width>
+              <Height>1.000833</Height>
             </Size>
           </ObjectLayout>
-        </LineObject>
+        </TextObject>
         <QRCodeObject>
-          <Name>IQRCodeObject0</Name>
+          <Name>QRCodeObject0</Name>
           <Brushes>
             <BackgroundBrush>
               <SolidColorBrush>
@@ -2188,84 +2158,15 @@ const DymoManager = {
           <EQRCodeType>QRCodeText</EQRCodeType>
           <ObjectLayout>
             <DYMOPoint>
-              <X>1.12</X>
-              <Y>0.16</Y>
+              <X>0.763646</X>
+              <Y>1.065</Y>
             </DYMOPoint>
             <Size>
-              <Width>1.12</Width>
-              <Height>1.12</Height>
+              <Width>1.235</Width>
+              <Height>1.015</Height>
             </Size>
           </ObjectLayout>
         </QRCodeObject>
-        <TextObject>
-          <Name>ITextObject1</Name>
-          <Brushes>
-            <BackgroundBrush>
-              <SolidColorBrush>
-                <Color A="0" R="0" G="0" B="0"></Color>
-              </SolidColorBrush>
-            </BackgroundBrush>
-            <BorderBrush>
-              <SolidColorBrush>
-                <Color A="1" R="0" G="0" B="0"></Color>
-              </SolidColorBrush>
-            </BorderBrush>
-            <StrokeBrush>
-              <SolidColorBrush>
-                <Color A="1" R="0" G="0" B="0"></Color>
-              </SolidColorBrush>
-            </StrokeBrush>
-            <FillBrush>
-              <SolidColorBrush>
-                <Color A="0" R="0" G="0" B="0"></Color>
-              </SolidColorBrush>
-            </FillBrush>
-          </Brushes>
-          <Rotation>Rotation0</Rotation>
-          <OutlineThickness>1</OutlineThickness>
-          <IsOutlined>False</IsOutlined>
-          <BorderStyle>SolidLine</BorderStyle>
-          <Margin>
-            <DYMOThickness Left="0" Top="0" Right="0" Bottom="0" />
-          </Margin>
-          <HorizontalAlignment>Center</HorizontalAlignment>
-          <VerticalAlignment>Middle</VerticalAlignment>
-          <FitMode>AlwaysFit</FitMode>
-          <IsVertical>False</IsVertical>
-          <FormattedText>
-            <FitMode>AlwaysFit</FitMode>
-            <HorizontalAlignment>Center</HorizontalAlignment>
-            <VerticalAlignment>Middle</VerticalAlignment>
-            <IsVertical>False</IsVertical>
-            <LineTextSpan>
-              <TextSpan>
-                <Text>Hersteller Modell</Text>
-                <FontInfo>
-                  <FontName>Segoe UI Symbol</FontName>
-                  <FontSize>10.5</FontSize>
-                  <IsBold>False</IsBold>
-                  <IsItalic>False</IsItalic>
-                  <IsUnderline>False</IsUnderline>
-                  <FontBrush>
-                    <SolidColorBrush>
-                      <Color A="1" R="0" G="0" B="0"></Color>
-                    </SolidColorBrush>
-                  </FontBrush>
-                </FontInfo>
-              </TextSpan>
-            </LineTextSpan>
-          </FormattedText>
-          <ObjectLayout>
-            <DYMOPoint>
-              <X>1.02</X>
-              <Y>1.40</Y>
-            </DYMOPoint>
-            <Size>
-              <Width>1.32</Width>
-              <Height>0.40</Height>
-            </Size>
-          </ObjectLayout>
-        </TextObject>
       </LabelObjects>
     </DynamicLayoutManager>
   </DYMOLabel>
@@ -2281,9 +2182,10 @@ const DymoManager = {
     if (typeof label?.setObjectText !== 'function') {
       throw new Error('DYMO-Labelobjekt unterstützt kein setObjectText().');
     }
-    label.setObjectText('ITextObject0', String(article?.id ?? '').trim() || '-');
-    label.setObjectText('ITextObject1', this._buildSecondaryLine(article) || ' ');
-    label.setObjectText('IQRCodeObject0', String(qrText ?? '').trim());
+    const primary = String(article?.id ?? '').trim() || '-';
+    const secondary = this._buildSecondaryLine(article);
+    label.setObjectText('TextObject2', secondary ? `${primary}\n${secondary}` : primary);
+    label.setObjectText('QRCodeObject0', String(qrText ?? '').trim());
   },
 
   _extractErrorMessage(error) {
