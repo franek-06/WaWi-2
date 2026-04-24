@@ -1900,7 +1900,7 @@ const QRManager = {
 const DymoManager = {
   _initialized: false,
   _templateXmlCache: null,
-  _templatePathCache: 'MoebelWawi_AutoQR_54x70_Gruppe.dymo',
+  _templatePathCache: 'C:\\Users\\fr\\OneDrive - Gebr. Roggendorf GmbH\\Desktop\\MoebelWawi_AutoQR_54x70_Gruppe.dymo',
   _embeddedTemplateXml: `<?xml version="1.0" encoding="utf-8"?>
 <DesktopLabel Version="1">
   <DYMOLabel Version="3">
@@ -2321,7 +2321,7 @@ const DymoManager = {
     }
   },
 
-  _getTemplateXml() {
+  _getTemplateXml(framework) {
     if (this._templateXmlCache) {
       return {
         xml : this._templateXmlCache,
@@ -2329,13 +2329,24 @@ const DymoManager = {
       };
     }
 
-    const xml = String(this._embeddedTemplateXml ?? '').trim();
-    if (!xml) {
+    try {
+      const fileLabel = framework?.openLabelFile?.(this._templatePathCache);
+      const fileXml = typeof fileLabel?.getLabelXml === 'function'
+        ? String(fileLabel.getLabelXml() ?? '').trim()
+        : '';
+      if (fileXml) {
+        this._templateXmlCache = fileXml;
+        return { xml: fileXml, path: this._templatePathCache };
+      }
+    } catch (_) {}
+
+    const embeddedXml = String(this._embeddedTemplateXml ?? '').trim();
+    if (!embeddedXml) {
       throw new Error('DYMO-Vorlage ist leer.');
     }
 
-    this._templateXmlCache = xml;
-    return { xml, path: this._templatePathCache };
+    this._templateXmlCache = embeddedXml;
+    return { xml: embeddedXml, path: this._templatePathCache };
   },
 
   _parseXml(xml) {
@@ -2404,8 +2415,8 @@ const DymoManager = {
     }
   },
 
-  _buildLabelXml(article, qrText) {
-    const { xml } = this._getTemplateXml();
+  _buildLabelXml(framework, article, qrText) {
+    const { xml } = this._getTemplateXml(framework);
     const doc = this._parseXml(xml);
     const groupNumber = String(article?.groupId ?? '').trim()
       || String(article?.id ?? '').trim()
@@ -2435,28 +2446,6 @@ const DymoManager = {
     return new XMLSerializer().serializeToString(doc);
   },
 
-  _buildLabel(framework, article, qrText) {
-    const { xml } = this._getTemplateXml();
-    const label = framework.openLabelXml(xml);
-    const groupNumber = String(article?.groupId ?? '').trim()
-      || String(article?.id ?? '').trim()
-      || '-';
-    const articleName = this._buildSecondaryLine(article);
-
-    if (typeof label?.setObjectText === 'function') {
-      try {
-        label.setObjectText('GroupNumber', groupNumber);
-        label.setObjectText('ArticleName', articleName);
-        label.setObjectText('ArticleQrCode', String(qrText ?? '').trim());
-        if (typeof label?.isValidLabel !== 'function' || label.isValidLabel()) {
-          return label;
-        }
-      } catch (_) {}
-    }
-
-    return framework.openLabelXml(this._buildLabelXml(article, qrText));
-  },
-
   _extractErrorMessage(error) {
     const rawMessage = String(error?.message ?? error ?? '').trim();
     return rawMessage || 'Unbekannter DYMO-Fehler.';
@@ -2476,14 +2465,15 @@ const DymoManager = {
         if (!qrText) {
           throw new Error(`Fuer Artikel ${article.id} ist kein QR-Inhalt verfuegbar.`);
         }
-        const label = this._buildLabel(framework, article, qrText);
+        const labelXml = this._buildLabelXml(framework, article, qrText);
+        const label = framework.openLabelXml(labelXml);
         if (typeof label?.isValidLabel === 'function' && !label.isValidLabel()) {
           throw new Error(`DYMO-Label fuer Artikel ${article.id} ist ungueltig.`);
         }
         framework.printLabel(
           printer.name,
           this._buildPrintParamsXml(),
-          typeof label?.getLabelXml === 'function' ? label.getLabelXml() : this._buildLabelXml(article, qrText),
+          labelXml,
           ''
         );
         printedCount++;
