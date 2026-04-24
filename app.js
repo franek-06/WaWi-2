@@ -2002,7 +2002,26 @@ const DymoManager = {
     }
   },
 
-  _buildLabelXml() {
+  _looksLikeUrl(value) {
+    return /^https?:\/\//i.test(String(value ?? '').trim());
+  },
+
+  _buildLabelXml(article, qrText) {
+    const primaryLine = Utils.escHtml(String(article?.id ?? '').trim() || '-');
+    const secondaryLine = Utils.escHtml(this._buildSecondaryLine(article));
+    const qrValue = String(qrText ?? '').trim();
+    const qrType = this._looksLikeUrl(qrValue) ? 'QRCodeWebPage' : 'QRCodeText';
+    const qrData = Utils.escHtml(this._looksLikeUrl(qrValue) ? `URL:${qrValue}` : qrValue);
+    const qrExtra = this._looksLikeUrl(qrValue)
+      ? `
+          <WebAddressDataHolder>
+            <MultiDataString>
+              <DataString></DataString>
+              <DataString>${Utils.escHtml(qrValue)}</DataString>
+            </MultiDataString>
+          </WebAddressDataHolder>`
+      : '';
+
     return `<?xml version="1.0" encoding="utf-8"?>
 <DesktopLabel Version="1">
   <DYMOLabel Version="3">
@@ -2073,10 +2092,10 @@ const DymoManager = {
             <IsVertical>False</IsVertical>
             <LineTextSpan>
               <TextSpan>
-                <Text>A-0000</Text>
+                <Text>${primaryLine}</Text>
                 <FontInfo>
                   <FontName>Segoe UI</FontName>
-                  <FontSize>20</FontSize>
+                  <FontSize>18</FontSize>
                   <IsBold>True</IsBold>
                   <IsItalic>False</IsItalic>
                   <IsUnderline>False</IsUnderline>
@@ -2090,7 +2109,7 @@ const DymoManager = {
             </LineTextSpan>
             <LineTextSpan>
               <TextSpan>
-                <Text>Hersteller Modell</Text>
+                <Text>${secondaryLine}</Text>
                 <FontInfo>
                   <FontName>Segoe UI</FontName>
                   <FontSize>11.7</FontSize>
@@ -2150,12 +2169,12 @@ const DymoManager = {
           </Margin>
           <BarcodeFormat>QRCode</BarcodeFormat>
           <Data>
-            <DataString>A-0000</DataString>
+            <DataString>${qrData}</DataString>
           </Data>
           <HorizontalAlignment>Center</HorizontalAlignment>
           <VerticalAlignment>Middle</VerticalAlignment>
           <Size>AutoFit</Size>
-          <EQRCodeType>QRCodeText</EQRCodeType>
+          <EQRCodeType>${qrType}</EQRCodeType>${qrExtra}
           <ObjectLayout>
             <DYMOPoint>
               <X>0.763646</X>
@@ -2178,16 +2197,6 @@ const DymoManager = {
 </DesktopLabel>`;
   },
 
-  _applyLabelValues(label, article, qrText) {
-    if (typeof label?.setObjectText !== 'function') {
-      throw new Error('DYMO-Labelobjekt unterstützt kein setObjectText().');
-    }
-    const primary = String(article?.id ?? '').trim() || '-';
-    const secondary = this._buildSecondaryLine(article);
-    label.setObjectText('TextObject2', secondary ? `${primary}\n${secondary}` : primary);
-    label.setObjectText('QRCodeObject0', String(qrText ?? '').trim());
-  },
-
   _extractErrorMessage(error) {
     const rawMessage = String(error?.message ?? error ?? '').trim();
     return rawMessage || 'Unbekannter DYMO-Fehler.';
@@ -2207,22 +2216,17 @@ const DymoManager = {
         if (!qrText) {
           throw new Error(`Fuer Artikel ${article.id} ist kein QR-Inhalt verfuegbar.`);
         }
-        const labelXml = this._buildLabelXml();
+        const labelXml = this._buildLabelXml(article, qrText);
         const label = framework.openLabelXml(labelXml);
-        this._applyLabelValues(label, article, qrText);
         if (typeof label?.isValidLabel === 'function' && !label.isValidLabel()) {
           throw new Error(`DYMO-Label fuer Artikel ${article.id} ist ungueltig.`);
         }
-        if (typeof label?.print === 'function') {
-          label.print(printer.name, this._buildPrintParamsXml(), '');
-        } else {
-          framework.printLabel(
-            printer.name,
-            this._buildPrintParamsXml(),
-            typeof label?.getLabelXml === 'function' ? label.getLabelXml() : labelXml,
-            ''
-          );
-        }
+        framework.printLabel(
+          printer.name,
+          this._buildPrintParamsXml(),
+          typeof label?.getLabelXml === 'function' ? label.getLabelXml() : labelXml,
+          ''
+        );
         printedCount++;
       }
       return { ok: true, count: printedCount, printerName };
