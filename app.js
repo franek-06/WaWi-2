@@ -1946,6 +1946,10 @@ const DymoManager = {
   },
 
   _buildPrintParamsXml() {
+    const framework = window.dymo?.label?.framework;
+    if (typeof framework?.createLabelWriterPrintParamsXml === 'function') {
+      return framework.createLabelWriterPrintParamsXml({ copies: 1 });
+    }
     return `<?xml version="1.0" encoding="utf-8"?>
 <LabelWriterPrintParams>
   <Copies>1</Copies>
@@ -1953,9 +1957,6 @@ const DymoManager = {
   },
 
   _buildLabelXml(article, qrText) {
-    const articleId = Utils.escHtml(String(article?.id ?? '').trim());
-    const secondaryLine = Utils.escHtml(this._buildSecondaryLine(article));
-    const qrValue = Utils.escHtml(String(qrText ?? '').trim());
     return `<?xml version="1.0" encoding="utf-8"?>
 <DesktopLabel Version="1">
   <DYMOLabel Version="3">
@@ -1989,7 +1990,7 @@ const DymoManager = {
           <Brushes>
             <BackgroundBrush>
               <SolidColorBrush>
-                <Color A="1" R="1" G="1" B="1"></Color>
+                <Color A="0" R="1" G="1" B="1"></Color>
               </SolidColorBrush>
             </BackgroundBrush>
             <BorderBrush>
@@ -2019,7 +2020,6 @@ const DymoManager = {
           <Data>
             <MultiDataString>
               <DataString></DataString>
-              <DataString>${qrValue}</DataString>
             </MultiDataString>
           </Data>
           <HorizontalAlignment>Center</HorizontalAlignment>
@@ -2091,7 +2091,7 @@ const DymoManager = {
             <IsVertical>False</IsVertical>
             <LineTextSpan>
               <TextSpan>
-                <Text>${articleId}</Text>
+                <Text></Text>
                 <FontInfo>
                   <FontName>Arial</FontName>
                   <FontSize>12</FontSize>
@@ -2160,7 +2160,7 @@ const DymoManager = {
             <IsVertical>False</IsVertical>
             <LineTextSpan>
               <TextSpan>
-                <Text>${secondaryLine}</Text>
+                <Text></Text>
                 <FontInfo>
                   <FontName>Arial</FontName>
                   <FontSize>8</FontSize>
@@ -2198,6 +2198,14 @@ const DymoManager = {
 </DesktopLabel>`;
   },
 
+  _applyLabelValues(label, article, qrText) {
+    if (!label || typeof label.setObjectText !== 'function') return label;
+    label.setObjectText('QR_CODE', String(qrText ?? '').trim());
+    label.setObjectText('ARTICLE_ID', String(article?.id ?? '').trim());
+    label.setObjectText('ARTICLE_LINE', this._buildSecondaryLine(article));
+    return label;
+  },
+
   _extractErrorMessage(error) {
     const rawMessage = String(error?.message ?? error ?? '').trim();
     return rawMessage || 'Unbekannter DYMO-Fehler.';
@@ -2218,7 +2226,11 @@ const DymoManager = {
           throw new Error(`Fuer Artikel ${article.id} ist kein QR-Inhalt verfuegbar.`);
         }
         const labelXml = this._buildLabelXml(article, qrText);
-        const label = framework.openLabelXml(labelXml);
+        const label = this._applyLabelValues(
+          framework.openLabelXml(labelXml),
+          article,
+          qrText
+        );
         if (typeof label?.isValidLabel === 'function' && !label.isValidLabel()) {
           throw new Error(`DYMO-Label fuer Artikel ${article.id} ist ungueltig.`);
         }
