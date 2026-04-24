@@ -1899,6 +1899,8 @@ const QRManager = {
 
 const DymoManager = {
   _initialized: false,
+  _templateXmlCache: null,
+  _templatePathCache: '',
 
   init() {
     const framework = window.dymo?.label?.framework;
@@ -1943,6 +1945,14 @@ const DymoManager = {
       .map(value => String(value ?? '').trim())
       .filter(Boolean)
       .join(' ');
+  },
+
+  _getTemplatePaths() {
+    return [
+      'C:\\Users\\fr\\OneDrive - Gebr. Roggendorf GmbH\\Desktop\\Kleinanzeigen QR.dymo',
+      'C:\\Users\\fr\\OneDrive - Gebr. Roggendorf GmbH\\Desktop\\Artikelnummer_dymo.dymo',
+      'C:\\Users\\fr\\OneDrive - Gebr. Roggendorf GmbH\\Desktop\\Preis_OR-Code_dymo.dymo',
+    ];
   },
 
   _buildPrintParamsXml() {
@@ -2002,180 +2012,114 @@ const DymoManager = {
     }
   },
 
-  _buildLabelXml(article, qrImageBase64) {
-    const primaryLine = Utils.escHtml(String(article?.id ?? '').trim() || '-');
-    const secondaryLine = Utils.escHtml(this._buildSecondaryLine(article));
-    const qrImage = Utils.escHtml(String(qrImageBase64 ?? '').trim());
+  _getTemplateXml(framework) {
+    if (this._templateXmlCache) {
+      return {
+        xml : this._templateXmlCache,
+        path: this._templatePathCache,
+      };
+    }
 
-    return `<?xml version="1.0" encoding="utf-8"?>
-<DesktopLabel Version="1">
-  <DYMOLabel Version="3">
-    <Description>DYMO Label</Description>
-    <Orientation>Landscape</Orientation>
-    <LabelName>StorageS0722440</LabelName>
-    <InitialLength>0</InitialLength>
-    <BorderStyle>SolidLine</BorderStyle>
-    <DYMORect>
-      <DYMOPoint>
-        <X>0.22</X>
-        <Y>0.05666666</Y>
-      </DYMOPoint>
-      <Size>
-        <Width>2.47</Width>
-        <Height>2.03</Height>
-      </Size>
-    </DYMORect>
-    <BorderColor>
-      <SolidColorBrush>
-        <Color A="1" R="0" G="0" B="0"></Color>
-      </SolidColorBrush>
-    </BorderColor>
-    <BorderThickness>1</BorderThickness>
-    <Show_Border>False</Show_Border>
-    <DynamicLayoutManager>
-      <RotationBehavior>ClearObjects</RotationBehavior>
-      <LabelObjects>
-        <TextObject>
-          <Name>TextObject2</Name>
-          <Brushes>
-            <BackgroundBrush>
-              <SolidColorBrush>
-                <Color A="0" R="0" G="0" B="0"></Color>
-              </SolidColorBrush>
-            </BackgroundBrush>
-            <BorderBrush>
-              <SolidColorBrush>
-                <Color A="1" R="0" G="0" B="0"></Color>
-              </SolidColorBrush>
-            </BorderBrush>
-            <StrokeBrush>
-              <SolidColorBrush>
-                <Color A="1" R="0" G="0" B="0"></Color>
-              </SolidColorBrush>
-            </StrokeBrush>
-            <FillBrush>
-              <SolidColorBrush>
-                <Color A="0" R="0" G="0" B="0"></Color>
-              </SolidColorBrush>
-            </FillBrush>
-          </Brushes>
-          <Rotation>Rotation0</Rotation>
-          <OutlineThickness>1</OutlineThickness>
-          <IsOutlined>False</IsOutlined>
-          <BorderStyle>SolidLine</BorderStyle>
-          <Margin>
-            <DYMOThickness Left="0" Top="0" Right="0" Bottom="0" />
-          </Margin>
-          <HorizontalAlignment>Center</HorizontalAlignment>
-          <VerticalAlignment>Middle</VerticalAlignment>
-          <FitMode>AlwaysFit</FitMode>
-          <IsVertical>False</IsVertical>
-          <FormattedText>
-            <FitMode>AlwaysFit</FitMode>
-            <HorizontalAlignment>Center</HorizontalAlignment>
-            <VerticalAlignment>Middle</VerticalAlignment>
-            <IsVertical>False</IsVertical>
-            <LineTextSpan>
-              <TextSpan>
-                <Text>${primaryLine}</Text>
-                <FontInfo>
-                  <FontName>Segoe UI</FontName>
-                  <FontSize>18</FontSize>
-                  <IsBold>True</IsBold>
-                  <IsItalic>False</IsItalic>
-                  <IsUnderline>False</IsUnderline>
-                  <FontBrush>
-                    <SolidColorBrush>
-                      <Color A="1" R="0" G="0" B="0"></Color>
-                    </SolidColorBrush>
-                  </FontBrush>
-                </FontInfo>
-              </TextSpan>
-            </LineTextSpan>
-            <LineTextSpan>
-              <TextSpan>
-                <Text>${secondaryLine}</Text>
-                <FontInfo>
-                  <FontName>Segoe UI</FontName>
-                  <FontSize>11.7</FontSize>
-                  <IsBold>False</IsBold>
-                  <IsItalic>False</IsItalic>
-                  <IsUnderline>False</IsUnderline>
-                  <FontBrush>
-                    <SolidColorBrush>
-                      <Color A="1" R="0" G="0" B="0"></Color>
-                    </SolidColorBrush>
-                  </FontBrush>
-                </FontInfo>
-              </TextSpan>
-            </LineTextSpan>
-          </FormattedText>
-          <ObjectLayout>
-            <DYMOPoint>
-              <X>0.22</X>
-              <Y>0.06416664</Y>
-            </DYMOPoint>
-            <Size>
-              <Width>2.334584</Width>
-              <Height>1.000833</Height>
-            </Size>
-          </ObjectLayout>
-        </TextObject>
-        <ImageObject>
-          <Name>ImageObject0</Name>
-          <Brushes>
-            <BackgroundBrush>
-              <SolidColorBrush>
-                <Color A="1" R="1" G="1" B="1"></Color>
-              </SolidColorBrush>
-            </BackgroundBrush>
-            <BorderBrush>
-              <SolidColorBrush>
-                <Color A="1" R="0" G="0" B="0"></Color>
-              </SolidColorBrush>
-            </BorderBrush>
-            <StrokeBrush>
-              <SolidColorBrush>
-                <Color A="1" R="0" G="0" B="0"></Color>
-              </SolidColorBrush>
-            </StrokeBrush>
-            <FillBrush>
-              <SolidColorBrush>
-                <Color A="1" R="0" G="0" B="0"></Color>
-              </SolidColorBrush>
-            </FillBrush>
-          </Brushes>
-          <Rotation>Rotation0</Rotation>
-          <OutlineThickness>1</OutlineThickness>
-          <IsOutlined>False</IsOutlined>
-          <BorderStyle>SolidLine</BorderStyle>
-          <Margin>
-            <DYMOThickness Left="0" Top="0" Right="0" Bottom="0" />
-          </Margin>
-          <Data>${qrImage}</Data>
-          <ScaleMode>Uniform</ScaleMode>
-          <HorizontalAlignment>Center</HorizontalAlignment>
-          <VerticalAlignment>Middle</VerticalAlignment>
-          <ObjectLayout>
-            <DYMOPoint>
-              <X>0.763646</X>
-              <Y>1.065</Y>
-            </DYMOPoint>
-            <Size>
-              <Width>1.235</Width>
-              <Height>1.015</Height>
-            </Size>
-          </ObjectLayout>
-        </ImageObject>
-      </LabelObjects>
-    </DynamicLayoutManager>
-  </DYMOLabel>
-  <LabelApplication>Blank</LabelApplication>
-  <DataTable>
-    <Columns></Columns>
-    <Rows></Rows>
-  </DataTable>
-</DesktopLabel>`;
+    const paths = this._getTemplatePaths();
+    for (const path of paths) {
+      try {
+        const label = framework.openLabelFile(path);
+        const xml = typeof label?.getLabelXml === 'function' ? String(label.getLabelXml() ?? '') : '';
+        if (!xml.trim()) continue;
+        this._templateXmlCache = xml;
+        this._templatePathCache = path;
+        return { xml, path };
+      } catch (_) {}
+    }
+
+    throw new Error('Keine DYMO-Vorlage gefunden. Erwartet auf dem Desktop: Kleinanzeigen QR.dymo oder Artikelnummer_dymo.dymo.');
+  },
+
+  _parseXml(xml) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xml, 'application/xml');
+    if (doc.querySelector('parsererror')) {
+      throw new Error('DYMO-Vorlage konnte nicht als XML gelesen werden.');
+    }
+    return doc;
+  },
+
+  _findLabelObject(doc, tagName, objectName) {
+    return [...doc.getElementsByTagName(tagName)].find(node =>
+      String(node.getElementsByTagName('Name')[0]?.textContent ?? '').trim() === objectName
+    ) || null;
+  },
+
+  _replaceFormattedText(doc, textObject, lines) {
+    const formattedText = textObject?.getElementsByTagName('FormattedText')[0];
+    if (!formattedText) return;
+
+    const templateLine = formattedText.getElementsByTagName('LineTextSpan')[0];
+    while (formattedText.firstChild) {
+      formattedText.removeChild(formattedText.firstChild);
+    }
+
+    const safeLines = lines.filter(line => String(line ?? '').trim());
+    if (!templateLine || !safeLines.length) return;
+
+    safeLines.forEach(line => {
+      const lineNode = templateLine.cloneNode(true);
+      const textNode = lineNode.getElementsByTagName('Text')[0];
+      if (textNode) textNode.textContent = String(line);
+      formattedText.appendChild(lineNode);
+    });
+  },
+
+  _updateQrObject(doc, qrObject, qrText) {
+    if (!qrObject) return;
+    const value = String(qrText ?? '').trim();
+    const isUrl = /^https?:\/\//i.test(value);
+
+    const dataString = qrObject.getElementsByTagName('DataString')[0];
+    if (dataString) {
+      dataString.textContent = isUrl ? `URL:${value}` : value;
+    }
+
+    const qrType = qrObject.getElementsByTagName('EQRCodeType')[0];
+    if (qrType) {
+      qrType.textContent = isUrl ? 'QRCodeWebPage' : 'QRCodeText';
+    }
+
+    const webHolder = qrObject.getElementsByTagName('WebAddressDataHolder')[0];
+    if (isUrl) {
+      if (webHolder) {
+        const dataStrings = webHolder.getElementsByTagName('DataString');
+        if (dataStrings[0]) dataStrings[0].textContent = '';
+        if (dataStrings[1]) {
+          dataStrings[1].textContent = value;
+        } else if (dataStrings[0]) {
+          dataStrings[0].textContent = value;
+        }
+      }
+    } else if (webHolder?.parentNode) {
+      webHolder.parentNode.removeChild(webHolder);
+    }
+  },
+
+  _buildLabelXml(framework, article, qrText) {
+    const { xml } = this._getTemplateXml(framework);
+    const doc = this._parseXml(xml);
+    const primary = String(article?.id ?? '').trim() || '-';
+    const secondary = this._buildSecondaryLine(article);
+
+    const textObject = this._findLabelObject(doc, 'TextObject', 'TextObject2')
+      || this._findLabelObject(doc, 'TextObject', 'ITextObject1')
+      || doc.getElementsByTagName('TextObject')[0]
+      || null;
+    this._replaceFormattedText(doc, textObject, [primary, secondary]);
+
+    const qrObject = this._findLabelObject(doc, 'QRCodeObject', 'QRCodeObject0')
+      || this._findLabelObject(doc, 'QRCodeObject', 'IQRCodeObject0')
+      || doc.getElementsByTagName('QRCodeObject')[0]
+      || null;
+    this._updateQrObject(doc, qrObject, qrText);
+
+    return new XMLSerializer().serializeToString(doc);
   },
 
   _extractErrorMessage(error) {
@@ -2197,16 +2141,15 @@ const DymoManager = {
         if (!qrText) {
           throw new Error(`Fuer Artikel ${article.id} ist kein QR-Inhalt verfuegbar.`);
         }
-        const qrImageBase64 = await this._createQrImageBase64(qrText);
-        const labelXml = this._buildLabelXml(article, qrImageBase64);
+        const labelXml = this._buildLabelXml(framework, article, qrText);
         const label = framework.openLabelXml(labelXml);
         if (typeof label?.isValidLabel === 'function' && !label.isValidLabel()) {
           throw new Error(`DYMO-Label fuer Artikel ${article.id} ist ungueltig.`);
         }
         framework.printLabel(
           printer.name,
-          '',
-          labelXml,
+          this._buildPrintParamsXml(),
+          typeof label?.getLabelXml === 'function' ? label.getLabelXml() : labelXml,
           ''
         );
         printedCount++;
